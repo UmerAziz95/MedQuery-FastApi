@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MedQuery RAG Tester</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --panel: #111827;
+        --panel-2: #1f2937;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --accent-2: #0ea5e9;
+        --border: #334155;
+        --error: #ef4444;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      header {
+        padding: 24px 32px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+      }
+
+      header p {
+        margin: 6px 0 0;
+        color: var(--muted);
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 24px;
+        padding: 24px 32px 40px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+      }
+
+      label {
+        display: block;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        padding: 10px 12px;
+        background: var(--panel-2);
+        color: var(--text);
+        font-size: 14px;
+        margin-bottom: 14px;
+      }
+
+      textarea {
+        min-height: 90px;
+        resize: vertical;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      button {
+        width: 100%;
+        border: none;
+        border-radius: 12px;
+        padding: 12px 16px;
+        background: var(--accent);
+        color: #0f172a;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+
+      button:hover {
+        background: var(--accent-2);
+        transform: translateY(-1px);
+      }
+
+      .chat-window {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 160px);
+      }
+
+      .messages {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 8px;
+      }
+
+      .message {
+        margin-bottom: 18px;
+        padding: 14px 16px;
+        border-radius: 14px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+      }
+
+      .message.user {
+        border-left: 4px solid var(--accent);
+      }
+
+      .message.system {
+        border-left: 4px solid #a78bfa;
+      }
+
+      .message .meta {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      .message pre {
+        white-space: pre-wrap;
+        margin: 0;
+        font-family: "JetBrains Mono", "Fira Code", monospace;
+      }
+
+      .composer {
+        margin-top: 18px;
+        display: flex;
+        gap: 12px;
+      }
+
+      .composer textarea {
+        flex: 1;
+        min-height: 60px;
+        margin-bottom: 0;
+      }
+
+      .composer button {
+        width: 160px;
+      }
+
+      .status {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .status.error {
+        color: var(--error);
+      }
+
+      .hint {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: -8px;
+        margin-bottom: 12px;
+      }
+
+      @media (max-width: 960px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+
+        .chat-window {
+          height: auto;
+          min-height: 520px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>MedQuery RAG Test Console</h1>
+      <p>ChatGPT-style UI for exercising the RAG and chat endpoints.</p>
+    </header>
+
+    <main>
+      <section class="panel">
+        <label for="mode">Mode</label>
+        <select id="mode">
+          <option value="chat">Chat (/api/chat/generate)</option>
+          <option value="retrieve">Retrieve (/api/rag/retrieve)</option>
+        </select>
+
+        <label for="token">Bearer Token (optional)</label>
+        <input id="token" placeholder="eyJhbGciOi..." />
+
+        <label for="business">Business Client ID</label>
+        <input id="business" placeholder="acme" value="acme" />
+
+        <label for="workspace">Workspace ID</label>
+        <input id="workspace" placeholder="main" value="main" />
+
+        <label for="user">User ID</label>
+        <input id="user" placeholder="u123" value="u123" />
+
+        <div class="row">
+          <div>
+            <label for="topK">Top K</label>
+            <input id="topK" type="number" min="1" value="5" />
+          </div>
+          <div>
+            <label for="temperature">Temperature</label>
+            <input id="temperature" type="number" step="0.1" min="0" max="2" value="0.2" />
+          </div>
+        </div>
+
+        <label for="maxTokens">Max Tokens</label>
+        <input id="maxTokens" type="number" min="1" value="600" />
+
+        <label for="prompt">Prompt Engineering</label>
+        <textarea id="prompt">You are a medical assistant. Provide concise answers.</textarea>
+
+        <label for="chatOverride">Chat Config Override (JSON)</label>
+        <textarea id="chatOverride" placeholder='{"model":"gpt-4.1-mini"}'></textarea>
+        <div class="hint">Optional. If provided, merged into the chat_config_override object.</div>
+
+        <button id="clear">Clear Conversation</button>
+        <div class="status" id="status">Ready.</div>
+      </section>
+
+      <section class="panel chat-window">
+        <div class="messages" id="messages"></div>
+        <div class="composer">
+          <textarea id="input" placeholder="Type a question to test the API..."></textarea>
+          <button id="send">Send</button>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const messagesEl = document.getElementById("messages");
+      const statusEl = document.getElementById("status");
+      const inputEl = document.getElementById("input");
+      const modeEl = document.getElementById("mode");
+      const tokenEl = document.getElementById("token");
+      const businessEl = document.getElementById("business");
+      const workspaceEl = document.getElementById("workspace");
+      const userEl = document.getElementById("user");
+      const topKEl = document.getElementById("topK");
+      const temperatureEl = document.getElementById("temperature");
+      const maxTokensEl = document.getElementById("maxTokens");
+      const promptEl = document.getElementById("prompt");
+      const chatOverrideEl = document.getElementById("chatOverride");
+
+      const addMessage = (role, content) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = `message ${role}`;
+        wrapper.innerHTML = `
+          <div class="meta">${role.toUpperCase()}</div>
+          <pre>${content}</pre>
+        `;
+        messagesEl.appendChild(wrapper);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      };
+
+      const setStatus = (text, isError = false) => {
+        statusEl.textContent = text;
+        statusEl.classList.toggle("error", isError);
+      };
+
+      const buildChatOverride = () => {
+        const overrideText = chatOverrideEl.value.trim();
+        let override = {};
+        if (overrideText) {
+          override = JSON.parse(overrideText);
+        }
+        return {
+          temperature: parseFloat(temperatureEl.value || "0.2"),
+          max_tokens: parseInt(maxTokensEl.value || "600", 10),
+          ...override,
+        };
+      };
+
+      const sendRequest = async () => {
+        const query = inputEl.value.trim();
+        if (!query) {
+          return;
+        }
+
+        addMessage("user", query);
+        inputEl.value = "";
+        setStatus("Sending request...");
+
+        const mode = modeEl.value;
+        const endpoint = mode === "chat" ? "/api/chat/generate" : "/api/rag/retrieve";
+
+        let payload = {
+          business_client_id: businessEl.value.trim(),
+          workspace_id: workspaceEl.value.trim(),
+          user_id: userEl.value.trim(),
+          query,
+        };
+
+        if (mode === "chat") {
+          payload.prompt_engineering = promptEl.value.trim();
+          payload.chat_config_override = buildChatOverride();
+        } else {
+          payload.top_k = parseInt(topKEl.value || "5", 10);
+        }
+
+        const headers = { "Content-Type": "application/json" };
+        if (tokenEl.value.trim()) {
+          headers.Authorization = `Bearer ${tokenEl.value.trim()}`;
+        }
+
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(payload),
+          });
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.message || "Request failed");
+          }
+
+          const displayContent = JSON.stringify(data, null, 2);
+          addMessage("system", displayContent);
+          setStatus(`Success (${response.status})`);
+        } catch (error) {
+          addMessage("system", `Error: ${error.message}`);
+          setStatus("Request failed", true);
+        }
+      };
+
+      document.getElementById("send").addEventListener("click", sendRequest);
+      document.getElementById("clear").addEventListener("click", () => {
+        messagesEl.innerHTML = "";
+        setStatus("Conversation cleared.");
+      });
+
+      inputEl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+          sendRequest();
+        }
+      });
+    </script>
+  </body>
+</html>

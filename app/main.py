@@ -9,6 +9,7 @@ from app.api.routes import (
     documents_router,
     health_router,
     rag_router,
+    ui_router,
     workspace_config_router,
     workspaces_router,
 )
@@ -51,3 +52,4 @@ app.include_router(documents_router, prefix=settings.api_v1_prefix)
 app.include_router(rag_router, prefix=settings.api_v1_prefix)
 app.include_router(chat_router, prefix=settings.api_v1_prefix)
 app.include_router(health_router, prefix=settings.api_v1_prefix)
+app.include_router(ui_router)
