@@ -38,6 +38,35 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
+### 5) Open the test UI
+Visit `http://localhost:8000/ui` for a ChatGPT-style console that targets the existing
+`/api/chat/generate` and `/api/rag/retrieve` endpoints. Provide a bearer token if your
+workspace requires authentication.
+
+## Docker setup
+
+### 1) Configure environment
+Create a `.env` file in the repo root (same variables as above):
+```env
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/medquery
+JWT_SECRET_KEY=change-me
+OPENAI_API_KEY=sk-...
+VECTOR_DIMENSION=1536
+```
+
+### 2) Start services
+```bash
+docker compose up --build
+```
+
+### 3) Run migrations
+```bash
+docker compose exec api alembic upgrade head
+```
+
+### 4) Open the UI
+Visit `http://localhost:8000/ui` to use the testing console (same endpoints consumed by third parties).
+
 ## API Walkthrough
 
 ### Bootstrap a super admin
