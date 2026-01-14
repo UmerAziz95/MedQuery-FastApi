@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -14,10 +16,23 @@ from app.api.routes import (
     workspaces_router,
 )
 from app.core.config import get_settings
+from app.core.seed import seed_initial_admin
 
 settings = get_settings()
 
-app = FastAPI(title=settings.app_name, openapi_url="/openapi.json", docs_url="/docs")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await seed_initial_admin()
+    yield
+
+
+app = FastAPI(
+    title=settings.app_name,
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    lifespan=lifespan,
+)
 
 
 @app.exception_handler(HTTPException)
