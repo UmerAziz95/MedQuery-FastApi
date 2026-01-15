@@ -44,7 +44,7 @@
 
       main {
         display: grid;
-        grid-template-columns: 340px 1fr;
+        grid-template-columns: 380px 1fr;
         gap: 24px;
         padding: 24px 32px 40px;
       }
@@ -55,6 +55,12 @@
         border-radius: 14px;
         padding: 20px;
         box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
       }
 
       label {
@@ -181,6 +187,28 @@
         margin-bottom: 12px;
       }
 
+      .panel h2 {
+        margin: 0 0 12px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .panel p {
+        margin-top: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .inline-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .inline-actions button {
+        width: auto;
+        flex: 1;
+      }
+
       @media (max-width: 960px) {
         main {
           grid-template-columns: 1fr;
@@ -200,49 +228,148 @@
     </header>
 
     <main>
-      <section class="panel">
-        <label for="mode">Mode</label>
-        <select id="mode">
-          <option value="chat">Chat (/api/chat/generate)</option>
-          <option value="retrieve">Retrieve (/api/rag/retrieve)</option>
-        </select>
+      <div class="stack">
+        <section class="panel">
+          <h2>Admin Authentication</h2>
+          <p>Log in as the seeded super admin, then create businesses, admins, and workspaces.</p>
 
-        <label for="token">Bearer Token (optional)</label>
-        <input id="token" placeholder="eyJhbGciOi..." />
+          <label for="authBusiness">Business Client ID</label>
+          <input id="authBusiness" placeholder="acme" value="acme" />
 
-        <label for="business">Business Client ID</label>
-        <input id="business" placeholder="acme" value="acme" />
+          <label for="authEmail">Admin Email</label>
+          <input id="authEmail" placeholder="superadmin@acme.com" />
 
-        <label for="workspace">Workspace ID</label>
-        <input id="workspace" placeholder="main" value="main" />
+          <label for="authPassword">Password</label>
+          <input id="authPassword" type="password" placeholder="••••••••" />
 
-        <label for="user">User ID</label>
-        <input id="user" placeholder="u123" value="u123" />
-
-        <div class="row">
-          <div>
-            <label for="topK">Top K</label>
-            <input id="topK" type="number" min="1" value="5" />
+          <div class="inline-actions">
+            <button id="loginAdmin">Login</button>
+            <button id="copyToken" type="button">Copy Token</button>
           </div>
-          <div>
-            <label for="temperature">Temperature</label>
-            <input id="temperature" type="number" step="0.1" min="0" max="2" value="0.2" />
+
+          <label for="token">Bearer Token</label>
+          <input id="token" placeholder="eyJhbGciOi..." />
+          <div class="status" id="adminStatus">Awaiting login.</div>
+        </section>
+
+        <section class="panel">
+          <h2>Business & Admin Setup</h2>
+          <p>Create business clients, then assign admins or super admins.</p>
+
+          <label for="newBusinessId">New Business Client ID</label>
+          <input id="newBusinessId" placeholder="acme-health" />
+
+          <label for="newBusinessName">Business Name</label>
+          <input id="newBusinessName" placeholder="Acme Health" />
+
+          <button id="createBusiness">Create Business</button>
+
+          <label for="createAdminBusiness">Admin Business Client ID</label>
+          <input id="createAdminBusiness" placeholder="acme-health" />
+
+          <label for="createAdminEmail">Admin Email</label>
+          <input id="createAdminEmail" placeholder="admin@acme.com" />
+
+          <label for="createAdminPassword">Admin Password</label>
+          <input id="createAdminPassword" type="password" placeholder="••••••••" />
+
+          <label for="createAdminRole">Admin Role</label>
+          <select id="createAdminRole">
+            <option value="admin">Admin</option>
+            <option value="super_admin">Super Admin</option>
+          </select>
+
+          <button id="createAdmin">Create Admin</button>
+          <div class="status" id="businessStatus">Ready for admin setup.</div>
+        </section>
+
+        <section class="panel">
+          <h2>Workspace Setup</h2>
+          <p>Create workspaces tied to a business client.</p>
+
+          <label for="workspaceBusiness">Business Client ID</label>
+          <input id="workspaceBusiness" placeholder="acme-health" />
+
+          <label for="newWorkspaceId">Workspace ID</label>
+          <input id="newWorkspaceId" placeholder="main" />
+
+          <label for="newWorkspaceName">Workspace Name</label>
+          <input id="newWorkspaceName" placeholder="Main Workspace" />
+
+          <button id="createWorkspace">Create Workspace</button>
+          <div class="status" id="workspaceStatus">Ready for workspace creation.</div>
+        </section>
+
+        <section class="panel">
+          <h2>RAG Document Upload</h2>
+          <p>Upload PDF/TXT files to create or extend a workspace RAG index.</p>
+
+          <label for="ragBusiness">Business Client ID</label>
+          <input id="ragBusiness" placeholder="acme-health" />
+
+          <label for="ragWorkspace">Workspace ID</label>
+          <input id="ragWorkspace" placeholder="main" />
+
+          <label for="ragFile">Document File (PDF/TXT)</label>
+          <input id="ragFile" type="file" accept=".pdf,.txt" />
+
+          <div class="row">
+            <div>
+              <label for="chunkWords">Chunk Words</label>
+              <input id="chunkWords" type="number" min="100" placeholder="400" />
+            </div>
+            <div>
+              <label for="overlapWords">Overlap Words</label>
+              <input id="overlapWords" type="number" min="0" placeholder="40" />
+            </div>
           </div>
-        </div>
 
-        <label for="maxTokens">Max Tokens</label>
-        <input id="maxTokens" type="number" min="1" value="600" />
+          <button id="uploadRag">Upload Document</button>
+          <div class="status" id="ragStatus">Awaiting document upload.</div>
+        </section>
 
-        <label for="prompt">Prompt Engineering</label>
-        <textarea id="prompt">You are a medical assistant. Provide concise answers.</textarea>
+        <section class="panel">
+          <h2>Chat & Retrieval</h2>
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="chat">Chat (/api/chat/generate)</option>
+            <option value="retrieve">Retrieve (/api/rag/retrieve)</option>
+          </select>
 
-        <label for="chatOverride">Chat Config Override (JSON)</label>
-        <textarea id="chatOverride" placeholder='{"model":"gpt-4.1-mini"}'></textarea>
-        <div class="hint">Optional. If provided, merged into the chat_config_override object.</div>
+          <label for="business">Business Client ID</label>
+          <input id="business" placeholder="acme" value="acme" />
 
-        <button id="clear">Clear Conversation</button>
-        <div class="status" id="status">Ready.</div>
-      </section>
+          <label for="workspace">Workspace ID</label>
+          <input id="workspace" placeholder="main" value="main" />
+
+          <label for="user">User ID</label>
+          <input id="user" placeholder="u123" value="u123" />
+
+          <div class="row">
+            <div>
+              <label for="topK">Top K</label>
+              <input id="topK" type="number" min="1" value="5" />
+            </div>
+            <div>
+              <label for="temperature">Temperature</label>
+              <input id="temperature" type="number" step="0.1" min="0" max="2" value="0.2" />
+            </div>
+          </div>
+
+          <label for="maxTokens">Max Tokens</label>
+          <input id="maxTokens" type="number" min="1" value="600" />
+
+          <label for="prompt">Prompt Engineering</label>
+          <textarea id="prompt">You are a medical assistant. Provide concise answers.</textarea>
+
+          <label for="chatOverride">Chat Config Override (JSON)</label>
+          <textarea id="chatOverride" placeholder='{"model":"gpt-4.1-mini"}'></textarea>
+          <div class="hint">Optional. If provided, merged into the chat_config_override object.</div>
+
+          <button id="clear">Clear Conversation</button>
+          <div class="status" id="status">Ready.</div>
+        </section>
+      </div>
 
       <section class="panel chat-window">
         <div class="messages" id="messages"></div>
@@ -259,6 +386,27 @@
       const inputEl = document.getElementById("input");
       const modeEl = document.getElementById("mode");
       const tokenEl = document.getElementById("token");
+      const authBusinessEl = document.getElementById("authBusiness");
+      const authEmailEl = document.getElementById("authEmail");
+      const authPasswordEl = document.getElementById("authPassword");
+      const adminStatusEl = document.getElementById("adminStatus");
+      const businessStatusEl = document.getElementById("businessStatus");
+      const workspaceStatusEl = document.getElementById("workspaceStatus");
+      const ragStatusEl = document.getElementById("ragStatus");
+      const newBusinessIdEl = document.getElementById("newBusinessId");
+      const newBusinessNameEl = document.getElementById("newBusinessName");
+      const createAdminBusinessEl = document.getElementById("createAdminBusiness");
+      const createAdminEmailEl = document.getElementById("createAdminEmail");
+      const createAdminPasswordEl = document.getElementById("createAdminPassword");
+      const createAdminRoleEl = document.getElementById("createAdminRole");
+      const workspaceBusinessEl = document.getElementById("workspaceBusiness");
+      const newWorkspaceIdEl = document.getElementById("newWorkspaceId");
+      const newWorkspaceNameEl = document.getElementById("newWorkspaceName");
+      const ragBusinessEl = document.getElementById("ragBusiness");
+      const ragWorkspaceEl = document.getElementById("ragWorkspace");
+      const ragFileEl = document.getElementById("ragFile");
+      const chunkWordsEl = document.getElementById("chunkWords");
+      const overlapWordsEl = document.getElementById("overlapWords");
       const businessEl = document.getElementById("business");
       const workspaceEl = document.getElementById("workspace");
       const userEl = document.getElementById("user");
@@ -284,6 +432,19 @@
         statusEl.classList.toggle("error", isError);
       };
 
+      const setPanelStatus = (element, text, isError = false) => {
+        element.textContent = text;
+        element.classList.toggle("error", isError);
+      };
+
+      const buildAuthHeaders = () => {
+        const headers = {};
+        if (tokenEl.value.trim()) {
+          headers.Authorization = `Bearer ${tokenEl.value.trim()}`;
+        }
+        return headers;
+      };
+
       const buildChatOverride = () => {
         const overrideText = chatOverrideEl.value.trim();
         let override = {};
@@ -295,6 +456,22 @@
           max_tokens: parseInt(maxTokensEl.value || "600", 10),
           ...override,
         };
+      };
+
+      const sendJsonRequest = async (endpoint, payload) => {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...buildAuthHeaders(),
+          },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || data.message || "Request failed");
+        }
+        return data;
       };
 
       const sendRequest = async () => {
@@ -324,31 +501,125 @@
           payload.top_k = parseInt(topKEl.value || "5", 10);
         }
 
-        const headers = { "Content-Type": "application/json" };
-        if (tokenEl.value.trim()) {
-          headers.Authorization = `Bearer ${tokenEl.value.trim()}`;
-        }
-
         try {
-          const response = await fetch(endpoint, {
-            method: "POST",
-            headers,
-            body: JSON.stringify(payload),
-          });
-
-          const data = await response.json();
-          if (!response.ok) {
-            throw new Error(data.message || "Request failed");
-          }
-
+          const data = await sendJsonRequest(endpoint, payload);
           const displayContent = JSON.stringify(data, null, 2);
           addMessage("system", displayContent);
-          setStatus(`Success (${response.status})`);
+          setStatus("Success");
         } catch (error) {
           addMessage("system", `Error: ${error.message}`);
           setStatus("Request failed", true);
         }
       };
+
+      document.getElementById("loginAdmin").addEventListener("click", async () => {
+        setPanelStatus(adminStatusEl, "Logging in...");
+        try {
+          const data = await sendJsonRequest("/admin/auth/login", {
+            business_client_id: authBusinessEl.value.trim(),
+            email: authEmailEl.value.trim(),
+            password: authPasswordEl.value.trim(),
+          });
+          tokenEl.value = data.access_token;
+          setPanelStatus(adminStatusEl, "Logged in. Token stored.");
+        } catch (error) {
+          setPanelStatus(adminStatusEl, `Login failed: ${error.message}`, true);
+        }
+      });
+
+      document.getElementById("copyToken").addEventListener("click", async () => {
+        if (!tokenEl.value.trim()) {
+          setPanelStatus(adminStatusEl, "No token to copy.", true);
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(tokenEl.value.trim());
+          setPanelStatus(adminStatusEl, "Token copied to clipboard.");
+        } catch (error) {
+          setPanelStatus(adminStatusEl, "Copy failed. Manual copy needed.", true);
+        }
+      });
+
+      document.getElementById("createBusiness").addEventListener("click", async () => {
+        setPanelStatus(businessStatusEl, "Creating business...");
+        try {
+          await sendJsonRequest("/admin/businesses", {
+            business_client_id: newBusinessIdEl.value.trim(),
+            name: newBusinessNameEl.value.trim(),
+          });
+          setPanelStatus(businessStatusEl, "Business created.");
+        } catch (error) {
+          setPanelStatus(businessStatusEl, `Business failed: ${error.message}`, true);
+        }
+      });
+
+      document.getElementById("createAdmin").addEventListener("click", async () => {
+        setPanelStatus(businessStatusEl, "Creating admin...");
+        try {
+          await sendJsonRequest("/admin/auth/create-admin", {
+            business_client_id: createAdminBusinessEl.value.trim(),
+            email: createAdminEmailEl.value.trim(),
+            password: createAdminPasswordEl.value.trim(),
+            role: createAdminRoleEl.value,
+          });
+          setPanelStatus(businessStatusEl, "Admin created.");
+        } catch (error) {
+          setPanelStatus(businessStatusEl, `Admin failed: ${error.message}`, true);
+        }
+      });
+
+      document.getElementById("createWorkspace").addEventListener("click", async () => {
+        setPanelStatus(workspaceStatusEl, "Creating workspace...");
+        try {
+          const businessClientId = workspaceBusinessEl.value.trim();
+          await sendJsonRequest(`/admin/businesses/${businessClientId}/workspaces`, {
+            workspace_id: newWorkspaceIdEl.value.trim(),
+            name: newWorkspaceNameEl.value.trim(),
+          });
+          setPanelStatus(workspaceStatusEl, "Workspace created.");
+        } catch (error) {
+          setPanelStatus(workspaceStatusEl, `Workspace failed: ${error.message}`, true);
+        }
+      });
+
+      document.getElementById("uploadRag").addEventListener("click", async () => {
+        setPanelStatus(ragStatusEl, "Uploading document...");
+        const file = ragFileEl.files[0];
+        if (!file) {
+          setPanelStatus(ragStatusEl, "Please select a PDF or TXT file.", true);
+          return;
+        }
+        const businessClientId = ragBusinessEl.value.trim();
+        const workspaceId = ragWorkspaceEl.value.trim();
+        const formData = new FormData();
+        formData.append("file", file);
+        if (chunkWordsEl.value) {
+          formData.append("chunk_words", chunkWordsEl.value);
+        }
+        if (overlapWordsEl.value) {
+          formData.append("overlap_words", overlapWordsEl.value);
+        }
+
+        try {
+          const response = await fetch(
+            `/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents/upload`,
+            {
+              method: "POST",
+              headers: {
+                ...buildAuthHeaders(),
+              },
+              body: formData,
+            }
+          );
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.detail || data.message || "Upload failed");
+          }
+          setPanelStatus(ragStatusEl, `Uploaded: ${data.document_id}`);
+        } catch (error) {
+          setPanelStatus(ragStatusEl, `Upload failed: ${error.message}`, true);
+        }
+      });
 
       document.getElementById("send").addEventListener("click", sendRequest);
       document.getElementById("clear").addEventListener("click", () => {
