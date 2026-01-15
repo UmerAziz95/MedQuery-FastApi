@@ -166,3 +166,120 @@ POST /api/chat/generate
 - Document deletion cascades to chunks.
 - All retrieval operations are filtered by `business_id` and `workspace_id`.
 - `VECTOR_DIMENSION` must match the embedding model dimension used in workspace configs.
+
+
+============================================================
+Start everything (build if needed)
+docker compose up -d
+
+▶️ Build fresh + start (use after code/env change)
+docker compose up -d --build
+
+⏹ Stop all services (keep data)
+docker compose down
+
+💥 Stop + delete volumes (DANGEROUS – deletes DB data)
+docker compose down -v
+
+🔄 Restart all services
+docker compose restart
+
+🔄 Restart one service only
+docker compose restart api
+
+🔹 Check Status / Health
+👀 See running containers
+docker compose ps
+
+👀 See ALL containers (running + crashed)
+docker compose ps -a
+
+🔎 See only Docker-level containers
+docker ps
+docker ps -a
+
+🔹 Logs (THIS IS HOW YOU DEBUG)
+📜 View logs of a service
+docker compose logs api
+
+📜 Last 100 lines
+docker compose logs --tail 100 api
+
+📡 Live logs (watch crashes in real time)
+docker compose logs -f api
+
+📜 Logs of DB
+docker compose logs postgres
+
+🔹 Enter Inside Containers (Very Important)
+🧠 Enter API container shell
+docker compose exec api bash
+
+🧠 Enter Postgres container
+docker compose exec postgres bash
+
+🔹 Run Commands Inside Containers
+▶️ Run Alembic migration
+docker compose exec api alembic upgrade head
+
+▶️ Run Python command inside API
+docker compose exec api python -c "print('hello')"
+
+▶️ Check env variable inside container
+docker compose exec api printenv DATABASE_URL
+
+🔹 Database (Postgres)
+🔐 Open psql shell
+docker compose exec postgres psql -U postgres -d medquery
+
+🔎 List tables
+\dt
+
+🔎 View table data
+SELECT * FROM businesses;
+
+❌ Exit psql
+\q
+
+🔹 Cleanup Commands (Use Carefully)
+🧹 Remove stopped containers
+docker container prune
+
+🧹 Remove unused images
+docker image prune
+
+💣 Remove EVERYTHING (last resort)
+docker system prune -a
+
+🔹 Very Common Fixes
+❌ Container crashes instantly
+docker compose logs api
+
+❌ Port not opening
+docker compose ps
+
+❌ Code change not reflected
+docker compose up -d --build
+
+❌ DB messed up (DEV ONLY)
+docker compose down -v
+docker compose up -d --build
+
+🔹 Mental Model (IMPORTANT)
+
+Image = blueprint (built once)
+
+Container = running process (dies, restarts)
+
+up → builds image → starts container
+
+restart → restarts container (NO rebuild)
+
+.env → loaded ONLY into container
+
+Logs ALWAYS tell the truth
+
+✅ Minimum Daily Workflow (MEMORIZE)
+docker compose up -d --build
+docker compose ps
+docker compose logs -f api
