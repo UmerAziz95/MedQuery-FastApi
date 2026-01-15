@@ -231,16 +231,19 @@
       <div class="stack">
         <section class="panel">
           <h2>Admin Authentication</h2>
-          <p>Log in as the seeded super admin, then create businesses, admins, and workspaces.</p>
+          <p>
+            Log in as the seeded super admin (default / admin@example.com / password), then create
+            businesses, admins, and workspaces.
+          </p>
 
           <label for="authBusiness">Business Client ID</label>
-          <input id="authBusiness" placeholder="acme" value="acme" />
+          <input id="authBusiness" placeholder="default" value="default" />
 
           <label for="authEmail">Admin Email</label>
-          <input id="authEmail" placeholder="superadmin@acme.com" />
+          <input id="authEmail" placeholder="admin@example.com" value="admin@example.com" />
 
           <label for="authPassword">Password</label>
-          <input id="authPassword" type="password" placeholder="••••••••" />
+          <input id="authPassword" type="password" placeholder="password" value="password" />
 
           <div class="inline-actions">
             <button id="loginAdmin">Login</button>
