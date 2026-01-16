@@ -4,12 +4,14 @@ from sqlalchemy import select
 
 from app.core.security import get_password_hash
 from app.db.session import AsyncSessionLocal
-from app.models import Business, BusinessAdmin
+from app.models import Business, BusinessAdmin, Workspace, WorkspaceConfig
 
 DEFAULT_BUSINESS_CLIENT_ID = "default"
 DEFAULT_BUSINESS_NAME = "Default Business"
 DEFAULT_ADMIN_EMAIL = "admin@example.com"
 DEFAULT_ADMIN_PASSWORD = "password"
+DEFAULT_WORKSPACE_ID = "main"
+DEFAULT_WORKSPACE_NAME = "Main Workspace"
 
 
 async def seed_initial_admin() -> None:
@@ -29,6 +31,19 @@ async def seed_initial_admin() -> None:
             )
             session.add(business)
             await session.flush()
+
+        existing_workspace = (
+            await session.execute(select(Workspace).where(Workspace.business_id == business.id))
+        ).scalar_one_or_none()
+        if not existing_workspace:
+            workspace = Workspace(
+                business_id=business.id,
+                workspace_id=DEFAULT_WORKSPACE_ID,
+                name=DEFAULT_WORKSPACE_NAME,
+            )
+            session.add(workspace)
+            await session.flush()
+            session.add(WorkspaceConfig(business_id=business.id, workspace_id=workspace.id))
 
         admin = BusinessAdmin(
             id=uuid.uuid4(),
