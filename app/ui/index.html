@@ -436,7 +436,8 @@
           <h2>Admin Authentication</h2>
           <p>
             Log in as the seeded super admin (default / admin@example.com / password), then create
-            businesses, admins, and workspaces.
+            businesses, admins, and workspaces. Seeded defaults include business_client_id
+            <strong>default</strong> and workspace_id <strong>main</strong>.
           </p>
 
           <label for="authBusiness">Business Client ID</label>
@@ -536,6 +537,10 @@
 
         <section class="panel">
           <h2>Chat & Retrieval</h2>
+          <p class="hint">
+            Chat requires a business + workspace pair that already exists. Use the workspace setup
+            panel (or the seeded default/main workspace) before sending a prompt.
+          </p>
           <label for="mode">Mode</label>
           <select id="mode">
             <option value="chat">Chat (/api/chat/generate)</option>
@@ -543,7 +548,7 @@
           </select>
 
           <label for="business">Business Client ID</label>
-          <input id="business" placeholder="acme" value="acme" />
+          <input id="business" placeholder="default" value="default" />
 
           <label for="workspace">Workspace ID</label>
           <input id="workspace" placeholder="main" value="main" />
@@ -748,6 +753,17 @@
         };
       };
 
+      const syncBusinessClientId = (businessClientId) => {
+        if (!businessClientId) {
+          return;
+        }
+        businessEl.value = businessClientId;
+        workspaceBusinessEl.value = businessClientId;
+        ragBusinessEl.value = businessClientId;
+        createAdminBusinessEl.value = businessClientId;
+        updateRequestPreview();
+      };
+
       const parseJsonSafely = (text) => {
         if (!text) {
           return null;
@@ -886,6 +902,7 @@
               password: authPasswordEl.value.trim(),
             });
             tokenEl.value = data.access_token;
+            syncBusinessClientId(authBusinessEl.value.trim());
             setPanelStatus(adminStatusEl, "Logged in. Token stored.", "success");
             showToast("success", "Admin login successful.");
           } catch (error) {
