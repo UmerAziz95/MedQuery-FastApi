@@ -384,6 +384,8 @@
     </main>
 
     <script>
+      const apiBase = "/api";
+      const adminBase = `${apiBase}/admin`;
       const messagesEl = document.getElementById("messages");
       const statusEl = document.getElementById("status");
       const inputEl = document.getElementById("input");
@@ -488,7 +490,7 @@
         setStatus("Sending request...");
 
         const mode = modeEl.value;
-        const endpoint = mode === "chat" ? "/api/chat/generate" : "/api/rag/retrieve";
+        const endpoint = mode === "chat" ? `${apiBase}/chat/generate` : `${apiBase}/rag/retrieve`;
 
         let payload = {
           business_client_id: businessEl.value.trim(),
@@ -518,7 +520,7 @@
       document.getElementById("loginAdmin").addEventListener("click", async () => {
         setPanelStatus(adminStatusEl, "Logging in...");
         try {
-          const data = await sendJsonRequest("/admin/auth/login", {
+          const data = await sendJsonRequest(`${adminBase}/auth/login`, {
             business_client_id: authBusinessEl.value.trim(),
             email: authEmailEl.value.trim(),
             password: authPasswordEl.value.trim(),
@@ -546,7 +548,7 @@
       document.getElementById("createBusiness").addEventListener("click", async () => {
         setPanelStatus(businessStatusEl, "Creating business...");
         try {
-          await sendJsonRequest("/admin/businesses", {
+          await sendJsonRequest(`${adminBase}/businesses`, {
             business_client_id: newBusinessIdEl.value.trim(),
             name: newBusinessNameEl.value.trim(),
           });
@@ -559,7 +561,7 @@
       document.getElementById("createAdmin").addEventListener("click", async () => {
         setPanelStatus(businessStatusEl, "Creating admin...");
         try {
-          await sendJsonRequest("/admin/auth/create-admin", {
+          await sendJsonRequest(`${adminBase}/auth/create-admin`, {
             business_client_id: createAdminBusinessEl.value.trim(),
             email: createAdminEmailEl.value.trim(),
             password: createAdminPasswordEl.value.trim(),
@@ -575,7 +577,7 @@
         setPanelStatus(workspaceStatusEl, "Creating workspace...");
         try {
           const businessClientId = workspaceBusinessEl.value.trim();
-          await sendJsonRequest(`/admin/businesses/${businessClientId}/workspaces`, {
+          await sendJsonRequest(`${adminBase}/businesses/${businessClientId}/workspaces`, {
             workspace_id: newWorkspaceIdEl.value.trim(),
             name: newWorkspaceNameEl.value.trim(),
           });
@@ -605,7 +607,7 @@
 
         try {
           const response = await fetch(
-            `/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents/upload`,
+            `${adminBase}/businesses/${businessClientId}/workspaces/${workspaceId}/documents/upload`,
             {
               method: "POST",
               headers: {
