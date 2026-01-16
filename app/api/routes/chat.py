@@ -21,7 +21,7 @@ async def generate_chat(
         )
     ).scalar_one_or_none()
     if not business:
-        raise HTTPException(status_code=404, detail="Business not found")
+        raise HTTPException(status_code=404, detail="Business not founds")
     workspace = (
         await session.execute(
             select(Workspace).where(

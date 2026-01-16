@@ -14,22 +14,35 @@ DEFAULT_ADMIN_PASSWORD = "password"
 
 async def seed_initial_admin() -> None:
     async with AsyncSessionLocal() as session:
-        existing_admin = (await session.execute(select(BusinessAdmin))).scalar_one_or_none()
-        if existing_admin:
-            return
-
-        business = (
+        # ✅ Allow multiple admins in DB:
+        # Only skip seeding if the DEFAULT admin email already exists.
+        existing_admin_id = (
             await session.execute(
-                select(Business).where(Business.business_client_id == DEFAULT_BUSINESS_CLIENT_ID)
+                select(BusinessAdmin.id).where(BusinessAdmin.email == DEFAULT_ADMIN_EMAIL)
             )
         ).scalar_one_or_none()
+
+        if existing_admin_id:
+            return
+
+        # Ensure default business exists
+        business = (
+            await session.execute(
+                select(Business).where(
+                    Business.business_client_id == DEFAULT_BUSINESS_CLIENT_ID
+                )
+            )
+        ).scalar_one_or_none()
+
         if not business:
             business = Business(
-                business_client_id=DEFAULT_BUSINESS_CLIENT_ID, name=DEFAULT_BUSINESS_NAME
+                business_client_id=DEFAULT_BUSINESS_CLIENT_ID,
+                name=DEFAULT_BUSINESS_NAME,
             )
             session.add(business)
-            await session.flush()
+            await session.flush()  # ensures business.id is available
 
+        # Create default admin (only if not already present)
         admin = BusinessAdmin(
             id=uuid.uuid4(),
             business_id=business.id,
