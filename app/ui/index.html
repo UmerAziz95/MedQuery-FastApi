@@ -10,10 +10,12 @@
         --bg: #0f172a;
         --panel: #111827;
         --panel-2: #1f2937;
+        --panel-3: #0b1220;
         --text: #e5e7eb;
         --muted: #94a3b8;
         --accent: #38bdf8;
         --accent-2: #0ea5e9;
+        --success: #22c55e;
         --border: #334155;
         --error: #ef4444;
       }
@@ -42,6 +44,29 @@
         color: var(--muted);
       }
 
+      .header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .header-badges {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .badge {
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.18);
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid rgba(56, 189, 248, 0.35);
+      }
+
       main {
         display: grid;
         grid-template-columns: 380px 1fr;
@@ -55,6 +80,11 @@
         border-radius: 14px;
         padding: 20px;
         box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+      }
+
+      .panel.glass {
+        background: linear-gradient(150deg, rgba(17, 24, 39, 0.88), rgba(11, 18, 32, 0.95));
+        border: 1px solid rgba(56, 189, 248, 0.15);
       }
 
       .stack {
@@ -86,6 +116,13 @@
         margin-bottom: 14px;
       }
 
+      input:focus,
+      textarea:focus,
+      select:focus {
+        outline: 2px solid rgba(56, 189, 248, 0.35);
+        border-color: rgba(56, 189, 248, 0.6);
+      }
+
       textarea {
         min-height: 90px;
         resize: vertical;
@@ -114,38 +151,130 @@
         transform: translateY(-1px);
       }
 
+      button:disabled {
+        cursor: wait;
+        opacity: 0.6;
+        transform: none;
+      }
+
       .chat-window {
         display: flex;
         flex-direction: column;
         height: calc(100vh - 160px);
+        gap: 16px;
+      }
+
+      .chat-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .chat-header h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .chat-header p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .chat-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .chat-actions button {
+        width: auto;
+      }
+
+      .request-panel {
+        background: var(--panel-3);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+      }
+
+      .request-panel h3 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .request-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
+
+      .request-card {
+        background: var(--panel-2);
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        padding: 12px;
+      }
+
+      .request-card h4 {
+        margin: 0 0 6px;
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .request-card pre {
+        margin: 0;
+        font-size: 12px;
+        white-space: pre-wrap;
+        color: var(--text);
+        font-family: "JetBrains Mono", "Fira Code", monospace;
       }
 
       .messages {
         flex: 1;
         overflow-y: auto;
-        padding-right: 8px;
+        padding: 6px 8px 6px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
       }
 
       .message {
-        margin-bottom: 18px;
         padding: 14px 16px;
         border-radius: 14px;
         background: var(--panel-2);
         border: 1px solid var(--border);
+        max-width: 90%;
       }
 
       .message.user {
+        align-self: flex-end;
+        background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(15, 23, 42, 0.9));
         border-left: 4px solid var(--accent);
       }
 
-      .message.system {
+      .message.assistant {
         border-left: 4px solid #a78bfa;
+        background: linear-gradient(135deg, rgba(167, 139, 250, 0.2), rgba(17, 24, 39, 0.92));
+      }
+
+      .message.system {
+        border-left: 4px solid var(--error);
+        background: rgba(239, 68, 68, 0.12);
       }
 
       .message .meta {
         font-size: 12px;
         color: var(--muted);
         margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
       }
 
       .message pre {
@@ -155,7 +284,7 @@
       }
 
       .composer {
-        margin-top: 18px;
+        margin-top: 8px;
         display: flex;
         gap: 12px;
       }
@@ -166,10 +295,6 @@
         margin-bottom: 0;
       }
 
-      .composer button {
-        width: 160px;
-      }
-
       .status {
         margin-top: 10px;
         color: var(--muted);
@@ -178,6 +303,10 @@
 
       .status.error {
         color: var(--error);
+      }
+
+      .status.success {
+        color: var(--success);
       }
 
       .hint {
@@ -209,6 +338,72 @@
         flex: 1;
       }
 
+      .toast-container {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        z-index: 999;
+      }
+
+      .toast {
+        min-width: 220px;
+        max-width: 360px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45);
+        display: grid;
+        gap: 6px;
+        animation: toast-in 0.2s ease-out;
+      }
+
+      .toast-title {
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .toast-message {
+        font-size: 13px;
+        color: var(--text);
+      }
+
+      .toast.success {
+        border-color: rgba(34, 197, 94, 0.6);
+      }
+
+      .toast.success .toast-title {
+        color: var(--success);
+      }
+
+      .toast.error {
+        border-color: rgba(239, 68, 68, 0.6);
+      }
+
+      .toast.error .toast-title {
+        color: var(--error);
+      }
+
+      .toast.warning .toast-title {
+        color: #f59e0b;
+      }
+
+      @keyframes toast-in {
+        from {
+          transform: translateY(8px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+
       @media (max-width: 960px) {
         main {
           grid-template-columns: 1fr;
@@ -223,8 +418,16 @@
   </head>
   <body>
     <header>
-      <h1>MedQuery RAG Test Console</h1>
-      <p>ChatGPT-style UI for exercising the RAG and chat endpoints.</p>
+      <div class="header-row">
+        <div>
+          <h1>MedQuery RAG Test Console</h1>
+          <p>ChatGPT-style UI for exercising the RAG and chat endpoints.</p>
+        </div>
+        <div class="header-badges">
+          <span class="badge">Environment: Local</span>
+          <span class="badge">Agent Mode</span>
+        </div>
+      </div>
     </header>
 
     <main>
@@ -368,26 +571,55 @@
           <label for="chatOverride">Chat Config Override (JSON)</label>
           <textarea id="chatOverride" placeholder='{"model":"gpt-4.1-mini"}'></textarea>
           <div class="hint">Optional. If provided, merged into the chat_config_override object.</div>
-
-          <button id="clear">Clear Conversation</button>
           <div class="status" id="status">Ready.</div>
         </section>
       </div>
 
-      <section class="panel chat-window">
+      <section class="panel chat-window glass">
+        <div class="chat-header">
+          <div>
+            <h2>AI Agent Session</h2>
+            <p id="sessionStatus">Ready to generate insights.</p>
+          </div>
+          <div class="chat-actions">
+            <button id="clear" type="button">Clear Conversation</button>
+            <button id="send" type="button">Send</button>
+          </div>
+        </div>
+
+        <div class="request-panel">
+          <h3>Request Inspector</h3>
+          <div class="request-grid">
+            <div class="request-card">
+              <h4>Endpoint</h4>
+              <pre id="requestEndpoint">/api/chat/generate</pre>
+            </div>
+            <div class="request-card">
+              <h4>Payload Preview</h4>
+              <pre id="requestPayload">{}</pre>
+            </div>
+            <div class="request-card">
+              <h4>Response Snapshot</h4>
+              <pre id="responsePayload">Awaiting response.</pre>
+            </div>
+          </div>
+        </div>
+
         <div class="messages" id="messages"></div>
         <div class="composer">
           <textarea id="input" placeholder="Type a question to test the API..."></textarea>
-          <button id="send">Send</button>
         </div>
       </section>
     </main>
+
+    <div class="toast-container" id="toastContainer"></div>
 
     <script>
       const apiBase = "/api";
       const adminBase = `${apiBase}/admin`;
       const messagesEl = document.getElementById("messages");
       const statusEl = document.getElementById("status");
+      const sessionStatusEl = document.getElementById("sessionStatus");
       const inputEl = document.getElementById("input");
       const modeEl = document.getElementById("mode");
       const tokenEl = document.getElementById("token");
@@ -420,26 +652,74 @@
       const maxTokensEl = document.getElementById("maxTokens");
       const promptEl = document.getElementById("prompt");
       const chatOverrideEl = document.getElementById("chatOverride");
+      const toastContainerEl = document.getElementById("toastContainer");
+      const requestEndpointEl = document.getElementById("requestEndpoint");
+      const requestPayloadEl = document.getElementById("requestPayload");
+      const responsePayloadEl = document.getElementById("responsePayload");
+      const sendButtonEl = document.getElementById("send");
+      const clearButtonEl = document.getElementById("clear");
 
-      const addMessage = (role, content) => {
+      const toastTimeoutMs = 3600;
+
+      const createToast = (type, title, message) => {
+        const toast = document.createElement("div");
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+          <div class="toast-title">${title}</div>
+          <div class="toast-message">${message}</div>
+        `;
+        toastContainerEl.appendChild(toast);
+        setTimeout(() => {
+          toast.remove();
+        }, toastTimeoutMs);
+      };
+
+      const showToast = (type, message) => {
+        const titleMap = {
+          success: "Success",
+          error: "Error",
+          warning: "Notice",
+        };
+        createToast(type, titleMap[type] || "Notice", message);
+      };
+
+      const addMessage = (role, content, label) => {
         const wrapper = document.createElement("div");
         wrapper.className = `message ${role}`;
         wrapper.innerHTML = `
-          <div class="meta">${role.toUpperCase()}</div>
+          <div class="meta">${label || role.toUpperCase()}</div>
           <pre>${content}</pre>
         `;
         messagesEl.appendChild(wrapper);
         messagesEl.scrollTop = messagesEl.scrollHeight;
       };
 
-      const setStatus = (text, isError = false) => {
+      const setStatus = (text, status = "idle") => {
         statusEl.textContent = text;
-        statusEl.classList.toggle("error", isError);
+        statusEl.classList.toggle("error", status === "error");
+        statusEl.classList.toggle("success", status === "success");
       };
 
-      const setPanelStatus = (element, text, isError = false) => {
+      const setSessionStatus = (text, status = "idle") => {
+        sessionStatusEl.textContent = text;
+        sessionStatusEl.classList.toggle("error", status === "error");
+        sessionStatusEl.classList.toggle("success", status === "success");
+      };
+
+      const setPanelStatus = (element, text, status = "idle") => {
         element.textContent = text;
-        element.classList.toggle("error", isError);
+        element.classList.toggle("error", status === "error");
+        element.classList.toggle("success", status === "success");
+      };
+
+      const setRequestDetails = (endpoint, payload, responsePreview) => {
+        requestEndpointEl.textContent = endpoint || "-";
+        requestPayloadEl.textContent = payload
+          ? JSON.stringify(payload, null, 2)
+          : "Awaiting request.";
+        if (responsePreview) {
+          responsePayloadEl.textContent = JSON.stringify(responsePreview, null, 2);
+        }
       };
 
       const buildAuthHeaders = () => {
@@ -454,7 +734,12 @@
         const overrideText = chatOverrideEl.value.trim();
         let override = {};
         if (overrideText) {
-          override = JSON.parse(overrideText);
+          try {
+            override = JSON.parse(overrideText);
+          } catch (error) {
+            showToast("error", "Chat override JSON is invalid.");
+            throw new Error("Chat config override must be valid JSON.");
+          }
         }
         return {
           temperature: parseFloat(temperatureEl.value || "0.2"),
@@ -463,8 +748,41 @@
         };
       };
 
+      const parseJsonSafely = (text) => {
+        if (!text) {
+          return null;
+        }
+        try {
+          return JSON.parse(text);
+        } catch (error) {
+          return null;
+        }
+      };
+
+      const sendRequestWithFeedback = async (endpoint, payload, options = {}) => {
+        const { onStatus, onSuccess, onError, method = "POST", headers, body } = options;
+        onStatus?.("Sending request...");
+        try {
+          const response = await fetch(endpoint, {
+            method,
+            headers,
+            body,
+          });
+          const rawText = await response.text();
+          const data = parseJsonSafely(rawText) ?? { message: rawText || "No response body." };
+          if (!response.ok) {
+            throw new Error(data.detail || data.message || "Request failed");
+          }
+          onSuccess?.(data);
+          return data;
+        } catch (error) {
+          onError?.(error);
+          throw error;
+        }
+      };
+
       const sendJsonRequest = async (endpoint, payload) => {
-        const response = await fetch(endpoint, {
+        return sendRequestWithFeedback(endpoint, payload, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -472,22 +790,33 @@
           },
           body: JSON.stringify(payload),
         });
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.detail || data.message || "Request failed");
-        }
-        return data;
+      };
+
+      const withButtonLoading = (button, action) => {
+        return async () => {
+          const originalText = button.textContent;
+          button.textContent = "Working...";
+          button.disabled = true;
+          try {
+            await action();
+          } finally {
+            button.textContent = originalText;
+            button.disabled = false;
+          }
+        };
       };
 
       const sendRequest = async () => {
         const query = inputEl.value.trim();
         if (!query) {
+          showToast("warning", "Type a prompt before sending.");
           return;
         }
 
-        addMessage("user", query);
+        addMessage("user", query, "You");
         inputEl.value = "";
         setStatus("Sending request...");
+        setSessionStatus("Processing...", "idle");
 
         const mode = modeEl.value;
         const endpoint = mode === "chat" ? `${apiBase}/chat/generate` : `${apiBase}/rag/retrieve`;
@@ -500,142 +829,239 @@
         };
 
         if (mode === "chat") {
-          payload.prompt_engineering = promptEl.value.trim();
-          payload.chat_config_override = buildChatOverride();
+          try {
+            payload.prompt_engineering = promptEl.value.trim();
+            payload.chat_config_override = buildChatOverride();
+          } catch (error) {
+            setStatus(error.message, "error");
+            setSessionStatus("Validation error.", "error");
+            return;
+          }
         } else {
           payload.top_k = parseInt(topKEl.value || "5", 10);
         }
 
         try {
+          setRequestDetails(endpoint, payload);
           const data = await sendJsonRequest(endpoint, payload);
           const displayContent = JSON.stringify(data, null, 2);
-          addMessage("system", displayContent);
-          setStatus("Success");
+          addMessage("assistant", displayContent, "Agent");
+          responsePayloadEl.textContent = displayContent;
+          setStatus("Success", "success");
+          setSessionStatus("Response received.", "success");
+          showToast("success", "Request completed.");
         } catch (error) {
-          addMessage("system", `Error: ${error.message}`);
-          setStatus("Request failed", true);
+          addMessage("system", `Error: ${error.message}`, "System");
+          responsePayloadEl.textContent = `Error: ${error.message}`;
+          setStatus("Request failed", "error");
+          setSessionStatus("Request failed.", "error");
+          showToast("error", error.message);
         }
       };
 
-      document.getElementById("loginAdmin").addEventListener("click", async () => {
-        setPanelStatus(adminStatusEl, "Logging in...");
-        try {
-          const data = await sendJsonRequest(`${adminBase}/auth/login`, {
-            business_client_id: authBusinessEl.value.trim(),
-            email: authEmailEl.value.trim(),
-            password: authPasswordEl.value.trim(),
-          });
-          tokenEl.value = data.access_token;
-          setPanelStatus(adminStatusEl, "Logged in. Token stored.");
-        } catch (error) {
-          setPanelStatus(adminStatusEl, `Login failed: ${error.message}`, true);
+      const updateRequestPreview = () => {
+        const mode = modeEl.value;
+        const endpoint = mode === "chat" ? `${apiBase}/chat/generate` : `${apiBase}/rag/retrieve`;
+        const payload = {
+          business_client_id: businessEl.value.trim(),
+          workspace_id: workspaceEl.value.trim(),
+          user_id: userEl.value.trim(),
+        };
+        if (mode === "chat") {
+          payload.prompt_engineering = promptEl.value.trim();
+        } else {
+          payload.top_k = parseInt(topKEl.value || "5", 10);
         }
-      });
+        setRequestDetails(endpoint, payload);
+      };
 
-      document.getElementById("copyToken").addEventListener("click", async () => {
-        if (!tokenEl.value.trim()) {
-          setPanelStatus(adminStatusEl, "No token to copy.", true);
-          return;
-        }
-        try {
-          await navigator.clipboard.writeText(tokenEl.value.trim());
-          setPanelStatus(adminStatusEl, "Token copied to clipboard.");
-        } catch (error) {
-          setPanelStatus(adminStatusEl, "Copy failed. Manual copy needed.", true);
-        }
-      });
-
-      document.getElementById("createBusiness").addEventListener("click", async () => {
-        setPanelStatus(businessStatusEl, "Creating business...");
-        try {
-          await sendJsonRequest(`${adminBase}/businesses`, {
-            business_client_id: newBusinessIdEl.value.trim(),
-            name: newBusinessNameEl.value.trim(),
-          });
-          setPanelStatus(businessStatusEl, "Business created.");
-        } catch (error) {
-          setPanelStatus(businessStatusEl, `Business failed: ${error.message}`, true);
-        }
-      });
-
-      document.getElementById("createAdmin").addEventListener("click", async () => {
-        setPanelStatus(businessStatusEl, "Creating admin...");
-        try {
-          await sendJsonRequest(`${adminBase}/auth/create-admin`, {
-            business_client_id: createAdminBusinessEl.value.trim(),
-            email: createAdminEmailEl.value.trim(),
-            password: createAdminPasswordEl.value.trim(),
-            role: createAdminRoleEl.value,
-          });
-          setPanelStatus(businessStatusEl, "Admin created.");
-        } catch (error) {
-          setPanelStatus(businessStatusEl, `Admin failed: ${error.message}`, true);
-        }
-      });
-
-      document.getElementById("createWorkspace").addEventListener("click", async () => {
-        setPanelStatus(workspaceStatusEl, "Creating workspace...");
-        try {
-          const businessClientId = workspaceBusinessEl.value.trim();
-          await sendJsonRequest(`${adminBase}/businesses/${businessClientId}/workspaces`, {
-            workspace_id: newWorkspaceIdEl.value.trim(),
-            name: newWorkspaceNameEl.value.trim(),
-          });
-          setPanelStatus(workspaceStatusEl, "Workspace created.");
-        } catch (error) {
-          setPanelStatus(workspaceStatusEl, `Workspace failed: ${error.message}`, true);
-        }
-      });
-
-      document.getElementById("uploadRag").addEventListener("click", async () => {
-        setPanelStatus(ragStatusEl, "Uploading document...");
-        const file = ragFileEl.files[0];
-        if (!file) {
-          setPanelStatus(ragStatusEl, "Please select a PDF or TXT file.", true);
-          return;
-        }
-        const businessClientId = ragBusinessEl.value.trim();
-        const workspaceId = ragWorkspaceEl.value.trim();
-        const formData = new FormData();
-        formData.append("file", file);
-        if (chunkWordsEl.value) {
-          formData.append("chunk_words", chunkWordsEl.value);
-        }
-        if (overlapWordsEl.value) {
-          formData.append("overlap_words", overlapWordsEl.value);
-        }
-
-        try {
-          const response = await fetch(
-            `${adminBase}/businesses/${businessClientId}/workspaces/${workspaceId}/documents/upload`,
-            {
-              method: "POST",
-              headers: {
-                ...buildAuthHeaders(),
-              },
-              body: formData,
-            }
-          );
-          const data = await response.json();
-          if (!response.ok) {
-            throw new Error(data.detail || data.message || "Upload failed");
+      document.getElementById("loginAdmin").addEventListener(
+        "click",
+        withButtonLoading(document.getElementById("loginAdmin"), async () => {
+          setPanelStatus(adminStatusEl, "Logging in...");
+          try {
+            const data = await sendJsonRequest(`${adminBase}/auth/login`, {
+              business_client_id: authBusinessEl.value.trim(),
+              email: authEmailEl.value.trim(),
+              password: authPasswordEl.value.trim(),
+            });
+            tokenEl.value = data.access_token;
+            setPanelStatus(adminStatusEl, "Logged in. Token stored.", "success");
+            showToast("success", "Admin login successful.");
+          } catch (error) {
+            setPanelStatus(adminStatusEl, `Login failed: ${error.message}`, "error");
+            showToast("error", `Login failed: ${error.message}`);
           }
-          setPanelStatus(ragStatusEl, `Uploaded: ${data.document_id}`);
-        } catch (error) {
-          setPanelStatus(ragStatusEl, `Upload failed: ${error.message}`, true);
-        }
+        })
+      );
+
+      document.getElementById("copyToken").addEventListener(
+        "click",
+        withButtonLoading(document.getElementById("copyToken"), async () => {
+          if (!tokenEl.value.trim()) {
+            setPanelStatus(adminStatusEl, "No token to copy.", "error");
+            showToast("warning", "No token available to copy.");
+            return;
+          }
+          try {
+            await navigator.clipboard.writeText(tokenEl.value.trim());
+            setPanelStatus(adminStatusEl, "Token copied to clipboard.", "success");
+            showToast("success", "Token copied.");
+          } catch (error) {
+            setPanelStatus(adminStatusEl, "Copy failed. Manual copy needed.", "error");
+            showToast("error", "Copy failed. Manual copy needed.");
+          }
+        })
+      );
+
+      document.getElementById("createBusiness").addEventListener(
+        "click",
+        withButtonLoading(document.getElementById("createBusiness"), async () => {
+          setPanelStatus(businessStatusEl, "Creating business...");
+          try {
+            await sendJsonRequest(`${adminBase}/businesses`, {
+              business_client_id: newBusinessIdEl.value.trim(),
+              name: newBusinessNameEl.value.trim(),
+            });
+            setPanelStatus(businessStatusEl, "Business created.", "success");
+            showToast("success", "Business created.");
+          } catch (error) {
+            setPanelStatus(businessStatusEl, `Business failed: ${error.message}`, "error");
+            showToast("error", `Business failed: ${error.message}`);
+          }
+        })
+      );
+
+      document.getElementById("createAdmin").addEventListener(
+        "click",
+        withButtonLoading(document.getElementById("createAdmin"), async () => {
+          setPanelStatus(businessStatusEl, "Creating admin...");
+          try {
+            await sendJsonRequest(`${adminBase}/auth/create-admin`, {
+              business_client_id: createAdminBusinessEl.value.trim(),
+              email: createAdminEmailEl.value.trim(),
+              password: createAdminPasswordEl.value.trim(),
+              role: createAdminRoleEl.value,
+            });
+            setPanelStatus(businessStatusEl, "Admin created.", "success");
+            showToast("success", "Admin created.");
+          } catch (error) {
+            setPanelStatus(businessStatusEl, `Admin failed: ${error.message}`, "error");
+            showToast("error", `Admin failed: ${error.message}`);
+          }
+        })
+      );
+
+      document.getElementById("createWorkspace").addEventListener(
+        "click",
+        withButtonLoading(document.getElementById("createWorkspace"), async () => {
+          setPanelStatus(workspaceStatusEl, "Creating workspace...");
+          try {
+            const businessClientId = workspaceBusinessEl.value.trim();
+            await sendJsonRequest(`${adminBase}/businesses/${businessClientId}/workspaces`, {
+              workspace_id: newWorkspaceIdEl.value.trim(),
+              name: newWorkspaceNameEl.value.trim(),
+            });
+            setPanelStatus(workspaceStatusEl, "Workspace created.", "success");
+            showToast("success", "Workspace created.");
+          } catch (error) {
+            setPanelStatus(workspaceStatusEl, `Workspace failed: ${error.message}`, "error");
+            showToast("error", `Workspace failed: ${error.message}`);
+          }
+        })
+      );
+
+      document.getElementById("uploadRag").addEventListener(
+        "click",
+        withButtonLoading(document.getElementById("uploadRag"), async () => {
+          setPanelStatus(ragStatusEl, "Uploading document...");
+          const file = ragFileEl.files[0];
+          if (!file) {
+            setPanelStatus(ragStatusEl, "Please select a PDF or TXT file.", "error");
+            showToast("warning", "Please select a PDF or TXT file.");
+            return;
+          }
+          const businessClientId = ragBusinessEl.value.trim();
+          const workspaceId = ragWorkspaceEl.value.trim();
+          const formData = new FormData();
+          formData.append("file", file);
+          if (chunkWordsEl.value) {
+            formData.append("chunk_words", chunkWordsEl.value);
+          }
+          if (overlapWordsEl.value) {
+            formData.append("overlap_words", overlapWordsEl.value);
+          }
+
+          try {
+            const data = await sendRequestWithFeedback(
+              `${adminBase}/businesses/${businessClientId}/workspaces/${workspaceId}/documents/upload`,
+              null,
+              {
+                method: "POST",
+                headers: {
+                  ...buildAuthHeaders(),
+                },
+                body: formData,
+              }
+            );
+            setPanelStatus(ragStatusEl, `Uploaded: ${data.document_id}`, "success");
+            showToast("success", `Uploaded document ${data.document_id}.`);
+          } catch (error) {
+            setPanelStatus(ragStatusEl, `Upload failed: ${error.message}`, "error");
+            showToast("error", `Upload failed: ${error.message}`);
+          }
+        })
+      );
+
+      sendButtonEl.addEventListener("click", withButtonLoading(sendButtonEl, sendRequest));
+      clearButtonEl.addEventListener("click", () => {
+        messagesEl.innerHTML = "";
+        responsePayloadEl.textContent = "Awaiting response.";
+        setStatus("Conversation cleared.");
+        setSessionStatus("Ready to generate insights.");
+        showToast("success", "Conversation cleared.");
       });
 
-      document.getElementById("send").addEventListener("click", sendRequest);
-      document.getElementById("clear").addEventListener("click", () => {
-        messagesEl.innerHTML = "";
-        setStatus("Conversation cleared.");
-      });
+      [
+        authBusinessEl,
+        authEmailEl,
+        authPasswordEl,
+        newBusinessIdEl,
+        newBusinessNameEl,
+        createAdminBusinessEl,
+        createAdminEmailEl,
+        createAdminPasswordEl,
+        workspaceBusinessEl,
+        newWorkspaceIdEl,
+        newWorkspaceNameEl,
+        ragBusinessEl,
+        ragWorkspaceEl,
+        chunkWordsEl,
+        overlapWordsEl,
+        businessEl,
+        workspaceEl,
+        userEl,
+        topKEl,
+        temperatureEl,
+        maxTokensEl,
+        promptEl,
+      ].forEach((input) => input.addEventListener("input", updateRequestPreview));
+      modeEl.addEventListener("change", updateRequestPreview);
+
+      updateRequestPreview();
 
       inputEl.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
           sendRequest();
         }
+      });
+
+      window.addEventListener("error", (event) => {
+        showToast("error", event.message || "Unexpected error.");
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        showToast("error", event.reason?.message || "Unhandled promise rejection.");
       });
     </script>
   </body>
