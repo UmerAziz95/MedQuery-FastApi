@@ -67,6 +67,16 @@
         border: 1px solid rgba(56, 189, 248, 0.35);
       }
 
+      .badge-link {
+        text-decoration: none;
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+
+      .badge-link:hover {
+        background: rgba(14, 165, 233, 0.25);
+        transform: translateY(-1px);
+      }
+
       main {
         display: grid;
         grid-template-columns: 380px 1fr;
@@ -426,6 +436,8 @@
         <div class="header-badges">
           <span class="badge">Environment: Local</span>
           <span class="badge">Agent Mode</span>
+          <a class="badge badge-link" href="/assignments">Assignments</a>
+          <a class="badge badge-link" href="/dbview">DB View</a>
         </div>
       </div>
     </header>
