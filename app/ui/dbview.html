@@ -221,8 +221,8 @@
           <div id="table-container"></div>
         </div>
         <div class="panel">
-          <h2>Selected Table Details</h2>
-          <p class="status" id="table-detail-status">Select a table to view columns.</p>
+          <h2>Selected Table Data</h2>
+          <p class="status" id="table-detail-status">Select a table to view rows.</p>
           <div id="table-detail"></div>
         </div>
       </section>
@@ -321,41 +321,45 @@
       const renderTableDetail = (detail) => {
         tableDetailStatus.textContent = "";
         if (!detail || !detail.columns || detail.columns.length === 0) {
-          tableDetailContainer.innerHTML = '<div class="empty-state">No columns found for this table.</div>';
+          tableDetailContainer.innerHTML = '<div class="empty-state">No data available for this table.</div>';
           return;
         }
+
+        const rows = detail.rows ?? [];
+        const headerRow = detail.columns
+          .map((column) => `<th>${column}</th>`)
+          .join("");
+        const bodyRows = rows
+          .map(
+            (row) => `
+              <tr>
+                ${detail.columns
+                  .map((column) => `<td>${row[column] ?? ""}</td>`)
+                  .join("")}
+              </tr>
+            `
+          )
+          .join("");
 
         tableDetailContainer.innerHTML = `
           <div class="card" style="margin-bottom: 16px;">
             <h3>${detail.name}</h3>
-            <p>${detail.row_count} rows</p>
+            <p>${detail.row_count} rows (showing up to ${rows.length})</p>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Column</th>
-                <th>Type</th>
-                <th>Nullable</th>
-                <th>Default</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${detail.columns
-                .map(
-                  (column) => `
-                    <tr>
-                      <td>${column.position}</td>
-                      <td>${column.name}</td>
-                      <td>${column.data_type}</td>
-                      <td>${column.is_nullable}</td>
-                      <td>${column.default ?? ""}</td>
-                    </tr>
-                  `
-                )
-                .join("")}
-            </tbody>
-          </table>
+          ${
+            rows.length
+              ? `
+                <table>
+                  <thead>
+                    <tr>${headerRow}</tr>
+                  </thead>
+                  <tbody>
+                    ${bodyRows}
+                  </tbody>
+                </table>
+              `
+              : '<div class="empty-state">No rows to display for this table.</div>'
+          }
         `;
       };
 

@@ -76,31 +76,13 @@ async def db_table_detail(
     count_result = await session.execute(text(f'SELECT COUNT(*) FROM "{table_name}"'))
     row_count = int(count_result.scalar_one())
 
-    columns_result = await session.execute(
-        text(
-            """
-            SELECT column_name, data_type, is_nullable, column_default, ordinal_position
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name = :table_name
-            ORDER BY ordinal_position
-            """
-        ),
-        {"table_name": table_name},
-    )
-    columns = [
-        {
-            "name": row[0],
-            "data_type": row[1],
-            "is_nullable": row[2],
-            "default": row[3],
-            "position": int(row[4]),
-        }
-        for row in columns_result.fetchall()
-    ]
+    rows_result = await session.execute(text(f'SELECT * FROM "{table_name}" LIMIT 50'))
+    columns = list(rows_result.keys())
+    rows = [dict(row) for row in rows_result.mappings().all()]
 
     return {
         "name": table_name,
         "row_count": row_count,
         "columns": columns,
+        "rows": rows,
     }
