@@ -220,12 +220,19 @@
           <p class="status" id="table-status">Loading table metadata…</p>
           <div id="table-container"></div>
         </div>
+        <div class="panel">
+          <h2>Selected Table Details</h2>
+          <p class="status" id="table-detail-status">Select a table to view columns.</p>
+          <div id="table-detail"></div>
+        </div>
       </section>
     </main>
     <script>
       const tableSidebar = document.getElementById("table-sidebar");
       const tableContainer = document.getElementById("table-container");
       const tableStatus = document.getElementById("table-status");
+      const tableDetailStatus = document.getElementById("table-detail-status");
+      const tableDetailContainer = document.getElementById("table-detail");
       const metaCards = document.getElementById("meta-cards");
       const tableCountPill = document.getElementById("table-count-pill");
 
@@ -262,13 +269,15 @@
         if (!tables.length) {
           tableContainer.innerHTML = '<div class="empty-state">No tables were found in the current schema.</div>';
           tableSidebar.innerHTML = '<li class="status">No tables found.</li>';
+          tableDetailStatus.textContent = "No table data available.";
+          tableDetailContainer.innerHTML = "";
           return;
         }
 
         tableSidebar.innerHTML = tables
           .map(
             (table, index) => `
-              <li class="${index === 0 ? "active" : ""}">${table.name}</li>
+              <li class="${index === 0 ? "active" : ""}" data-table="${table.name}">${table.name}</li>
             `
           )
           .join("");
@@ -295,6 +304,77 @@
             </tbody>
           </table>
         `;
+
+        const sidebarItems = tableSidebar.querySelectorAll("li[data-table]");
+        sidebarItems.forEach((item) => {
+          item.addEventListener("click", () => {
+            sidebarItems.forEach((entry) => entry.classList.remove("active"));
+            item.classList.add("active");
+            const selectedTable = item.dataset.table;
+            if (selectedTable) {
+              loadTableDetail(selectedTable);
+            }
+          });
+        });
+      };
+
+      const renderTableDetail = (detail) => {
+        tableDetailStatus.textContent = "";
+        if (!detail || !detail.columns || detail.columns.length === 0) {
+          tableDetailContainer.innerHTML = '<div class="empty-state">No columns found for this table.</div>';
+          return;
+        }
+
+        tableDetailContainer.innerHTML = `
+          <div class="card" style="margin-bottom: 16px;">
+            <h3>${detail.name}</h3>
+            <p>${detail.row_count} rows</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Column</th>
+                <th>Type</th>
+                <th>Nullable</th>
+                <th>Default</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${detail.columns
+                .map(
+                  (column) => `
+                    <tr>
+                      <td>${column.position}</td>
+                      <td>${column.name}</td>
+                      <td>${column.data_type}</td>
+                      <td>${column.is_nullable}</td>
+                      <td>${column.default ?? ""}</td>
+                    </tr>
+                  `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        `;
+      };
+
+      const loadTableDetail = async (tableName) => {
+        tableDetailStatus.textContent = `Loading ${tableName} details…`;
+        tableDetailStatus.classList.remove("error");
+        tableDetailContainer.innerHTML = "";
+        try {
+          const response = await fetch(`/api/db/tables/${encodeURIComponent(tableName)}`);
+          if (!response.ok) {
+            throw new Error("Failed to load table detail.");
+          }
+          const payload = await response.json();
+          renderTableDetail(payload);
+        } catch (error) {
+          tableDetailStatus.textContent = "Unable to load table details.";
+          tableDetailStatus.classList.add("error");
+          tableDetailContainer.innerHTML = '<div class="empty-state">Check database connectivity and refresh.</div>';
+        }
       };
 
       const loadOverview = async () => {
@@ -309,12 +389,18 @@
           renderMeta(payload.meta, payload.table_count);
           renderTables(payload.tables);
           tableStatus.textContent = "";
+          if (payload.tables.length > 0) {
+            await loadTableDetail(payload.tables[0].name);
+          }
         } catch (error) {
           tableStatus.textContent = "Unable to load database metadata.";
           tableStatus.classList.add("error");
           tableContainer.innerHTML = '<div class="empty-state">Check database connectivity and refresh.</div>';
           tableSidebar.innerHTML = '<li class="status error">Failed to load tables.</li>';
           tableCountPill.textContent = "Tables unavailable";
+          tableDetailStatus.textContent = "Unable to load table details.";
+          tableDetailStatus.classList.add("error");
+          tableDetailContainer.innerHTML = '<div class="empty-state">Check database connectivity and refresh.</div>';
         }
       };
 

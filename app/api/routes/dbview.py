@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,4 +50,57 @@ async def db_overview(session: AsyncSession = Depends(get_session)) -> dict[str,
         },
         "tables": table_entries,
         "table_count": len(table_entries),
+    }
+
+
+@router.get("/db/tables/{table_name}")
+async def db_table_detail(
+    table_name: str, session: AsyncSession = Depends(get_session)
+) -> dict[str, Any]:
+    table_exists_result = await session.execute(
+        text(
+            """
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+              AND table_type = 'BASE TABLE'
+              AND table_name = :table_name
+            """
+        ),
+        {"table_name": table_name},
+    )
+
+    if table_exists_result.scalar() is None:
+        raise HTTPException(status_code=404, detail="Table not found")
+
+    count_result = await session.execute(text(f'SELECT COUNT(*) FROM "{table_name}"'))
+    row_count = int(count_result.scalar_one())
+
+    columns_result = await session.execute(
+        text(
+            """
+            SELECT column_name, data_type, is_nullable, column_default, ordinal_position
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = :table_name
+            ORDER BY ordinal_position
+            """
+        ),
+        {"table_name": table_name},
+    )
+    columns = [
+        {
+            "name": row[0],
+            "data_type": row[1],
+            "is_nullable": row[2],
+            "default": row[3],
+            "position": int(row[4]),
+        }
+        for row in columns_result.fetchall()
+    ]
+
+    return {
+        "name": table_name,
+        "row_count": row_count,
+        "columns": columns,
     }
