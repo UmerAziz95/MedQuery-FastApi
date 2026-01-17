@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Database Overview</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --panel: #111827;
+        --panel-2: #1f2937;
+        --panel-3: #0b1220;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --accent-2: #0ea5e9;
+        --success: #22c55e;
+        --border: #334155;
+        --error: #ef4444;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      header {
+        padding: 24px 32px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+      }
+
+      header p {
+        margin: 6px 0 0;
+        color: var(--muted);
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 24px;
+        padding: 24px 32px 40px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+      }
+
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .sidebar h2 {
+        margin: 0 0 8px;
+        font-size: 16px;
+      }
+
+      .sidebar-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .sidebar-list li {
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: var(--panel-2);
+        border: 1px solid transparent;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .sidebar-list li.active {
+        border-color: rgba(56, 189, 248, 0.5);
+        color: var(--text);
+        background: rgba(56, 189, 248, 0.08);
+      }
+
+      .content {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+      }
+
+      .card {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+      }
+
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .card p {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      th {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .status {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.15);
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .error {
+        color: var(--error);
+      }
+
+      .empty-state {
+        padding: 24px;
+        border-radius: 12px;
+        border: 1px dashed var(--border);
+        color: var(--muted);
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Database Tables Overview</h1>
+      <p>Explore tables created by migrations, counts, and core metadata.</p>
+    </header>
+    <main>
+      <aside class="panel sidebar">
+        <div>
+          <h2>Tables</h2>
+          <div class="pill" id="table-count-pill">Loading tables...</div>
+        </div>
+        <ul class="sidebar-list" id="table-sidebar">
+          <li class="status">Loading table list…</li>
+        </ul>
+      </aside>
+      <section class="content">
+        <div class="cards" id="meta-cards">
+          <div class="card">
+            <h3>Database</h3>
+            <p class="status">Loading…</p>
+          </div>
+          <div class="card">
+            <h3>Schema</h3>
+            <p class="status">Loading…</p>
+          </div>
+          <div class="card">
+            <h3>Size</h3>
+            <p class="status">Loading…</p>
+          </div>
+          <div class="card">
+            <h3>Tables</h3>
+            <p class="status">Loading…</p>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Table Listings</h2>
+          <p class="status" id="table-status">Loading table metadata…</p>
+          <div id="table-container"></div>
+        </div>
+        <div class="panel">
+          <h2>Selected Table Details</h2>
+          <p class="status" id="table-detail-status">Select a table to view columns.</p>
+          <div id="table-detail"></div>
+        </div>
+      </section>
+    </main>
+    <script>
+      const tableSidebar = document.getElementById("table-sidebar");
+      const tableContainer = document.getElementById("table-container");
+      const tableStatus = document.getElementById("table-status");
+      const tableDetailStatus = document.getElementById("table-detail-status");
+      const tableDetailContainer = document.getElementById("table-detail");
+      const metaCards = document.getElementById("meta-cards");
+      const tableCountPill = document.getElementById("table-count-pill");
+
+      const formatBytes = (bytes) => {
+        if (bytes === 0) {
+          return "0 B";
+        }
+        const units = ["B", "KB", "MB", "GB", "TB"];
+        const index = Math.floor(Math.log(bytes) / Math.log(1024));
+        return `${(bytes / 1024 ** index).toFixed(2)} ${units[index]}`;
+      };
+
+      const renderMeta = (meta, tableCount) => {
+        const items = [
+          { label: "Database", value: meta.name },
+          { label: "Schema", value: meta.schema },
+          { label: "Size", value: formatBytes(meta.size_bytes) },
+          { label: "Tables", value: tableCount.toString() },
+        ];
+
+        metaCards.innerHTML = items
+          .map(
+            (item) => `
+              <div class="card">
+                <h3>${item.label}</h3>
+                <p>${item.value}</p>
+              </div>
+            `
+          )
+          .join("");
+      };
+
+      const renderTables = (tables) => {
+        if (!tables.length) {
+          tableContainer.innerHTML = '<div class="empty-state">No tables were found in the current schema.</div>';
+          tableSidebar.innerHTML = '<li class="status">No tables found.</li>';
+          tableDetailStatus.textContent = "No table data available.";
+          tableDetailContainer.innerHTML = "";
+          return;
+        }
+
+        tableSidebar.innerHTML = tables
+          .map(
+            (table, index) => `
+              <li class="${index === 0 ? "active" : ""}" data-table="${table.name}">${table.name}</li>
+            `
+          )
+          .join("");
+
+        tableContainer.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Table</th>
+                <th>Row Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tables
+                .map(
+                  (table) => `
+                    <tr>
+                      <td>${table.name}</td>
+                      <td>${table.row_count}</td>
+                    </tr>
+                  `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        `;
+
+        const sidebarItems = tableSidebar.querySelectorAll("li[data-table]");
+        sidebarItems.forEach((item) => {
+          item.addEventListener("click", () => {
+            sidebarItems.forEach((entry) => entry.classList.remove("active"));
+            item.classList.add("active");
+            const selectedTable = item.dataset.table;
+            if (selectedTable) {
+              loadTableDetail(selectedTable);
+            }
+          });
+        });
+      };
+
+      const renderTableDetail = (detail) => {
+        tableDetailStatus.textContent = "";
+        if (!detail || !detail.columns || detail.columns.length === 0) {
+          tableDetailContainer.innerHTML = '<div class="empty-state">No columns found for this table.</div>';
+          return;
+        }
+
+        tableDetailContainer.innerHTML = `
+          <div class="card" style="margin-bottom: 16px;">
+            <h3>${detail.name}</h3>
+            <p>${detail.row_count} rows</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Column</th>
+                <th>Type</th>
+                <th>Nullable</th>
+                <th>Default</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${detail.columns
+                .map(
+                  (column) => `
+                    <tr>
+                      <td>${column.position}</td>
+                      <td>${column.name}</td>
+                      <td>${column.data_type}</td>
+                      <td>${column.is_nullable}</td>
+                      <td>${column.default ?? ""}</td>
+                    </tr>
+                  `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        `;
+      };
+
+      const loadTableDetail = async (tableName) => {
+        tableDetailStatus.textContent = `Loading ${tableName} details…`;
+        tableDetailStatus.classList.remove("error");
+        tableDetailContainer.innerHTML = "";
+        try {
+          const response = await fetch(`/api/db/tables/${encodeURIComponent(tableName)}`);
+          if (!response.ok) {
+            throw new Error("Failed to load table detail.");
+          }
+          const payload = await response.json();
+          renderTableDetail(payload);
+        } catch (error) {
+          tableDetailStatus.textContent = "Unable to load table details.";
+          tableDetailStatus.classList.add("error");
+          tableDetailContainer.innerHTML = '<div class="empty-state">Check database connectivity and refresh.</div>';
+        }
+      };
+
+      const loadOverview = async () => {
+        try {
+          const response = await fetch("/api/db/overview");
+          if (!response.ok) {
+            throw new Error("Failed to load database metadata.");
+          }
+          const payload = await response.json();
+
+          tableCountPill.textContent = `${payload.table_count} tables`;
+          renderMeta(payload.meta, payload.table_count);
+          renderTables(payload.tables);
+          tableStatus.textContent = "";
+          if (payload.tables.length > 0) {
+            await loadTableDetail(payload.tables[0].name);
+          }
+        } catch (error) {
+          tableStatus.textContent = "Unable to load database metadata.";
+          tableStatus.classList.add("error");
+          tableContainer.innerHTML = '<div class="empty-state">Check database connectivity and refresh.</div>';
+          tableSidebar.innerHTML = '<li class="status error">Failed to load tables.</li>';
+          tableCountPill.textContent = "Tables unavailable";
+          tableDetailStatus.textContent = "Unable to load table details.";
+          tableDetailStatus.classList.add("error");
+          tableDetailContainer.innerHTML = '<div class="empty-state">Check database connectivity and refresh.</div>';
+        }
+      };
+
+      loadOverview();
+    </script>
+  </body>
+</html>
