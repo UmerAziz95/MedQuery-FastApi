@@ -11,6 +11,7 @@ _DBVIEW_PATH = Path(__file__).resolve().parents[2] / "ui" / "dbview.html"
 _ASSIGNMENTS_PATH = Path(__file__).resolve().parents[2] / "ui" / "assignments.html"
 _PROFILE_PATH = Path(__file__).resolve().parents[2] / "ui" / "profile.html"
 _SYSTEM_CONFIG_PATH = Path(__file__).resolve().parents[2] / "ui" / "system-config.html"
+_RAG_PATH = Path(__file__).resolve().parents[2] / "ui" / "rag.html"
 
 
 @router.get("/ui", response_class=HTMLResponse)
@@ -52,4 +53,10 @@ async def profile() -> HTMLResponse:
 @router.get("/system-config", response_class=HTMLResponse)
 async def system_config() -> HTMLResponse:
     html_content = _SYSTEM_CONFIG_PATH.read_text(encoding="utf-8")
+    return HTMLResponse(content=html_content)
+
+
+@router.get("/rag-builder", response_class=HTMLResponse)
+async def rag_builder() -> HTMLResponse:
+    html_content = _RAG_PATH.read_text(encoding="utf-8")
     return HTMLResponse(content=html_content)

@@ -50,6 +50,16 @@
         font-weight: 600;
       }
 
+      .header-links {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .header-links a {
+        font-size: 13px;
+      }
+
       main {
         padding: 32px;
         display: grid;
@@ -123,7 +133,11 @@
         <h1>System Configurations</h1>
         <p class="status">Manage default chat preferences for the workspace.</p>
       </div>
-      <a href="/chat">Back to chat →</a>
+      <div class="header-links">
+        <a href="/chat">Chat workspace</a>
+        <a href="/rag-builder">RAG builder</a>
+        <a href="/profile">Profile</a>
+      </div>
     </header>
 
     <main>
