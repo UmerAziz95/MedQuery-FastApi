@@ -35,6 +35,10 @@
         padding: 24px 32px;
         border-bottom: 1px solid var(--border);
         background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
       }
 
       header h1 {
@@ -46,6 +50,19 @@
       header p {
         margin: 6px 0 0;
         color: var(--muted);
+      }
+
+      .header-links {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .header-links a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 600;
       }
 
       main {
@@ -226,8 +243,16 @@
   </head>
   <body>
     <header>
-      <h1>Assignment Console</h1>
-      <p>Assign admins to businesses and manage workspace access in one place.</p>
+      <div>
+        <h1>Assignment Console</h1>
+        <p>Assign admins to businesses and manage workspace access in one place.</p>
+      </div>
+      <div class="header-links">
+        <a href="/chat">Chat workspace</a>
+        <a href="/rag-builder">RAG builder</a>
+        <a href="/database-overview">Database overview</a>
+        <a href="/profile">Profile</a>
+      </div>
     </header>
     <main>
       <aside class="panel sidebar">
@@ -337,10 +362,12 @@
         }
       };
 
-      const getToken = () => localStorage.getItem("assignmentToken") || "";
+      const getToken = () =>
+        localStorage.getItem("adminToken") || localStorage.getItem("assignmentToken") || "";
 
       const saveToken = () => {
         const token = tokenInput.value.trim();
+        localStorage.setItem("adminToken", token);
         localStorage.setItem("assignmentToken", token);
         setStatus(tokenStatus, token ? "Token saved." : "Token cleared.", token ? "success" : "");
         return token;
