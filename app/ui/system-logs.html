@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>System Logs</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --panel: #111827;
+        --panel-2: #1f2937;
+        --panel-3: #0b1220;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --accent-2: #0ea5e9;
+        --success: #22c55e;
+        --border: #334155;
+        --error: #ef4444;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        padding: 20px 32px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 600;
+      }
+
+      header p {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .profile-menu {
+        position: relative;
+      }
+
+      .profile-button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 12px;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(56, 189, 248, 0.3);
+        display: grid;
+        place-items: center;
+        font-weight: 600;
+        color: var(--accent);
+      }
+
+      .dropdown {
+        position: absolute;
+        right: 0;
+        top: 48px;
+        min-width: 220px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45);
+        padding: 8px;
+        display: none;
+        z-index: 10;
+      }
+
+      .dropdown.open {
+        display: grid;
+        gap: 4px;
+      }
+
+      .dropdown a,
+      .dropdown button {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .dropdown a:hover,
+      .dropdown button:hover {
+        background: rgba(56, 189, 248, 0.12);
+      }
+
+      main {
+        flex: 1;
+        padding: 24px 32px 40px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+      }
+
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+      }
+
+      label {
+        display: block;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      input,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        padding: 10px 12px;
+        background: var(--panel-2);
+        color: var(--text);
+        font-size: 14px;
+      }
+
+      button {
+        border: none;
+        border-radius: 12px;
+        padding: 12px 16px;
+        background: var(--accent);
+        color: #0f172a;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      button.secondary {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+
+      th {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .status {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.15);
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .empty-state {
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px dashed var(--border);
+        color: var(--muted);
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>System Logs</h1>
+        <p>Track admin actions and errors across the UI modules.</p>
+      </div>
+      <div class="profile-menu">
+        <button class="profile-button" id="profile-toggle" type="button">
+          <span class="avatar" id="profile-avatar">A</span>
+          <span id="profile-name">Admin</span>
+        </button>
+        <div class="dropdown" id="profile-dropdown">
+          <a href="/profile">Profile</a>
+          <a href="/rag-builder">RAG builder</a>
+          <a href="/database-overview">Database overview</a>
+          <a href="/assignments">Assignments</a>
+          <a href="/system-config">System configurations</a>
+          <a href="/chat">Chat workspace</a>
+          <button type="button" id="logout">Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <div class="filters">
+          <div>
+            <label for="filter-level">Level</label>
+            <select id="filter-level">
+              <option value="">All</option>
+              <option value="info">Info</option>
+              <option value="warning">Warning</option>
+              <option value="error">Error</option>
+            </select>
+          </div>
+          <div>
+            <label for="filter-tag">Tag</label>
+            <select id="filter-tag">
+              <option value="">All tags</option>
+            </select>
+          </div>
+          <div>
+            <label for="filter-search">Search</label>
+            <input id="filter-search" placeholder="Search action or details" />
+          </div>
+        </div>
+        <div class="actions" style="margin-top: 16px;">
+          <button id="refresh">Refresh logs</button>
+          <button id="clear" class="secondary" type="button">Clear logs</button>
+        </div>
+        <div class="status" id="log-status" style="margin-top: 12px;"></div>
+      </section>
+
+      <section class="panel">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+          <h2 style="margin: 0;">Log Entries</h2>
+          <span class="pill" id="log-count">0 entries</span>
+        </div>
+        <div id="log-table" style="margin-top: 12px;"></div>
+      </section>
+    </main>
+
+    <script>
+      const token = localStorage.getItem("adminToken");
+      if (!token) {
+        window.location.assign("/ui");
+      }
+
+      const profileName = document.getElementById("profile-name");
+      const profileAvatar = document.getElementById("profile-avatar");
+      const profileToggle = document.getElementById("profile-toggle");
+      const profileDropdown = document.getElementById("profile-dropdown");
+      const logoutButton = document.getElementById("logout");
+
+      const email = localStorage.getItem("adminEmail") || "Admin";
+      profileName.textContent = email;
+      profileAvatar.textContent = email.charAt(0).toUpperCase();
+
+      const filterLevel = document.getElementById("filter-level");
+      const filterTag = document.getElementById("filter-tag");
+      const filterSearch = document.getElementById("filter-search");
+      const logTable = document.getElementById("log-table");
+      const logStatus = document.getElementById("log-status");
+      const logCount = document.getElementById("log-count");
+
+      const logStorageKey = "systemLogs";
+
+      const logEvent = (level, tag, action, details = "") => {
+        const logs = JSON.parse(localStorage.getItem(logStorageKey) || "[]");
+        logs.unshift({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          level,
+          tag,
+          action,
+          details,
+        });
+        localStorage.setItem(logStorageKey, JSON.stringify(logs.slice(0, 500)));
+      };
+
+      const loadLogs = () => JSON.parse(localStorage.getItem(logStorageKey) || "[]");
+      const saveLogs = (logs) => localStorage.setItem(logStorageKey, JSON.stringify(logs));
+
+      const updateTagOptions = (logs) => {
+        const tags = Array.from(new Set(logs.map((log) => log.tag).filter(Boolean)));
+        filterTag.innerHTML = '<option value="">All tags</option>';
+        filterTag.innerHTML += tags.map((tag) => `<option value="${tag}">${tag}</option>`).join("");
+      };
+
+      const renderLogs = () => {
+        const logs = loadLogs();
+        const levelFilter = filterLevel.value;
+        const tagFilter = filterTag.value;
+        const searchFilter = filterSearch.value.trim().toLowerCase();
+
+        const filtered = logs.filter((log) => {
+          if (levelFilter && log.level !== levelFilter) {
+            return false;
+          }
+          if (tagFilter && log.tag !== tagFilter) {
+            return false;
+          }
+          if (searchFilter) {
+            const haystack = `${log.action} ${log.details}`.toLowerCase();
+            return haystack.includes(searchFilter);
+          }
+          return true;
+        });
+
+        logCount.textContent = `${filtered.length} entries`;
+        logStatus.textContent = logs.length ? "" : "No logs available.";
+
+        if (!filtered.length) {
+          logTable.innerHTML = '<div class="empty-state">No logs match the current filters.</div>';
+          return;
+        }
+
+        logTable.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Level</th>
+                <th>Tag</th>
+                <th>Action</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered
+                .map(
+                  (log) => `
+                    <tr>
+                      <td>${new Date(log.timestamp).toLocaleString()}</td>
+                      <td>${log.level}</td>
+                      <td>${log.tag || "-"}</td>
+                      <td>${log.action}</td>
+                      <td>${log.details || "-"}</td>
+                    </tr>
+                  `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        `;
+      };
+
+      document.getElementById("refresh").addEventListener("click", () => {
+        updateTagOptions(loadLogs());
+        renderLogs();
+        logEvent("info", "system-logs", "logs_refreshed");
+      });
+
+      document.getElementById("clear").addEventListener("click", () => {
+        saveLogs([]);
+        updateTagOptions([]);
+        renderLogs();
+        logEvent("warning", "system-logs", "logs_cleared");
+      });
+
+      [filterLevel, filterTag, filterSearch].forEach((input) => {
+        input.addEventListener("input", renderLogs);
+      });
+
+      profileToggle.addEventListener("click", () => {
+        profileDropdown.classList.toggle("open");
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!profileToggle.contains(event.target) && !profileDropdown.contains(event.target)) {
+          profileDropdown.classList.remove("open");
+        }
+      });
+
+      logoutButton.addEventListener("click", () => {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminBusinessId");
+        localStorage.removeItem("adminEmail");
+        localStorage.removeItem("adminLoginAt");
+        logEvent("info", "auth", "logout");
+        window.location.assign("/ui");
+      });
+
+      window.addEventListener("error", (event) => {
+        logEvent("error", "system", "window_error", event.message || "Unexpected error");
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        logEvent("error", "system", "unhandled_rejection", event.reason?.message || "Unhandled promise rejection");
+      });
+
+      updateTagOptions(loadLogs());
+      renderLogs();
+    </script>
+  </body>
+</html>

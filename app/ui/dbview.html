@@ -52,17 +52,71 @@
         color: var(--muted);
       }
 
-      .header-links {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
+      .profile-menu {
+        position: relative;
       }
 
-      .header-links a {
+      .profile-button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 12px;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(56, 189, 248, 0.3);
+        display: grid;
+        place-items: center;
+        font-weight: 600;
         color: var(--accent);
+      }
+
+      .dropdown {
+        position: absolute;
+        right: 0;
+        top: 48px;
+        min-width: 220px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45);
+        padding: 8px;
+        display: none;
+        z-index: 10;
+      }
+
+      .dropdown.open {
+        display: grid;
+        gap: 4px;
+      }
+
+      .dropdown a,
+      .dropdown button {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
+        color: var(--text);
         text-decoration: none;
         font-size: 13px;
-        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .dropdown a:hover,
+      .dropdown button:hover {
+        background: rgba(56, 189, 248, 0.12);
       }
 
       main {
@@ -204,11 +258,20 @@
         <h1>Database Tables Overview</h1>
         <p>Explore tables created by migrations, counts, and core metadata.</p>
       </div>
-      <div class="header-links">
-        <a href="/chat">Chat workspace</a>
-        <a href="/rag-builder">RAG builder</a>
-        <a href="/assignments">Assignments</a>
-        <a href="/profile">Profile</a>
+      <div class="profile-menu">
+        <button class="profile-button" id="profile-toggle" type="button">
+          <span class="avatar" id="profile-avatar">A</span>
+          <span id="profile-name">Admin</span>
+        </button>
+        <div class="dropdown" id="profile-dropdown">
+          <a href="/profile">Profile</a>
+          <a href="/chat">Chat workspace</a>
+          <a href="/rag-builder">RAG builder</a>
+          <a href="/assignments">Assignments</a>
+          <a href="/system-config">System configurations</a>
+          <a href="/system-logs">System logs</a>
+          <button type="button" id="logout">Sign out</button>
+        </div>
       </div>
     </header>
     <main>
@@ -260,6 +323,25 @@
       const tableDetailContainer = document.getElementById("table-detail");
       const metaCards = document.getElementById("meta-cards");
       const tableCountPill = document.getElementById("table-count-pill");
+      const profileName = document.getElementById("profile-name");
+      const profileAvatar = document.getElementById("profile-avatar");
+      const profileToggle = document.getElementById("profile-toggle");
+      const profileDropdown = document.getElementById("profile-dropdown");
+      const logoutButton = document.getElementById("logout");
+
+      const logEvent = (level, tag, action, details = "") => {
+        const logStorageKey = "systemLogs";
+        const logs = JSON.parse(localStorage.getItem(logStorageKey) || "[]");
+        logs.unshift({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          level,
+          tag,
+          action,
+          details,
+        });
+        localStorage.setItem(logStorageKey, JSON.stringify(logs.slice(0, 500)));
+      };
 
       const formatBytes = (bytes) => {
         if (bytes === 0) {
@@ -399,10 +481,12 @@
           }
           const payload = await response.json();
           renderTableDetail(payload);
+          logEvent("info", "dbview", "table_detail_loaded", tableName);
         } catch (error) {
           tableDetailStatus.textContent = "Unable to load table details.";
           tableDetailStatus.classList.add("error");
           tableDetailContainer.innerHTML = '<div class="empty-state">Check database connectivity and refresh.</div>';
+          logEvent("error", "dbview", "table_detail_failed", error.message);
         }
       };
 
@@ -421,6 +505,7 @@
           if (payload.tables.length > 0) {
             await loadTableDetail(payload.tables[0].name);
           }
+          logEvent("info", "dbview", "overview_loaded", `tables=${payload.table_count}`);
         } catch (error) {
           tableStatus.textContent = "Unable to load database metadata.";
           tableStatus.classList.add("error");
@@ -430,8 +515,40 @@
           tableDetailStatus.textContent = "Unable to load table details.";
           tableDetailStatus.classList.add("error");
           tableDetailContainer.innerHTML = '<div class="empty-state">Check database connectivity and refresh.</div>';
+          logEvent("error", "dbview", "overview_failed", error.message);
         }
       };
+
+      const email = localStorage.getItem("adminEmail") || "Admin";
+      profileName.textContent = email;
+      profileAvatar.textContent = email.charAt(0).toUpperCase();
+
+      profileToggle.addEventListener("click", () => {
+        profileDropdown.classList.toggle("open");
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!profileToggle.contains(event.target) && !profileDropdown.contains(event.target)) {
+          profileDropdown.classList.remove("open");
+        }
+      });
+
+      logoutButton.addEventListener("click", () => {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminBusinessId");
+        localStorage.removeItem("adminEmail");
+        localStorage.removeItem("adminLoginAt");
+        logEvent("info", "auth", "logout");
+        window.location.assign("/ui");
+      });
+
+      window.addEventListener("error", (event) => {
+        logEvent("error", "system", "window_error", event.message || "Unexpected error");
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        logEvent("error", "system", "unhandled_rejection", event.reason?.message || "Unhandled promise rejection");
+      });
 
       loadOverview();
     </script>

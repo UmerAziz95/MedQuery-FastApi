@@ -45,10 +45,71 @@
         font-size: 24px;
       }
 
-      header a {
-        color: var(--accent);
-        text-decoration: none;
+      .profile-menu {
+        position: relative;
+      }
+
+      .profile-button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 12px;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(56, 189, 248, 0.3);
+        display: grid;
+        place-items: center;
         font-weight: 600;
+        color: var(--accent);
+      }
+
+      .dropdown {
+        position: absolute;
+        right: 0;
+        top: 48px;
+        min-width: 220px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45);
+        padding: 8px;
+        display: none;
+        z-index: 10;
+      }
+
+      .dropdown.open {
+        display: grid;
+        gap: 4px;
+      }
+
+      .dropdown a,
+      .dropdown button {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .dropdown a:hover,
+      .dropdown button:hover {
+        background: rgba(56, 189, 248, 0.12);
       }
 
       main {
@@ -154,7 +215,21 @@
         <h1>Admin Profile</h1>
         <p class="muted">View and manage your admin session details.</p>
       </div>
-      <a href="/chat">Back to chat →</a>
+      <div class="profile-menu">
+        <button class="profile-button" id="profile-toggle" type="button">
+          <span class="avatar" id="profile-avatar">A</span>
+          <span id="profile-name">Admin</span>
+        </button>
+        <div class="dropdown" id="profile-dropdown">
+          <a href="/chat">Chat workspace</a>
+          <a href="/rag-builder">RAG builder</a>
+          <a href="/database-overview">Database overview</a>
+          <a href="/assignments">Assignments</a>
+          <a href="/system-config">System configurations</a>
+          <a href="/system-logs">System logs</a>
+          <button type="button" id="logout">Sign out</button>
+        </div>
+      </div>
     </header>
 
     <main>
@@ -180,6 +255,7 @@
           <li><a href="/database-overview">Database overview</a></li>
           <li><a href="/assignments">Assignments</a></li>
           <li><a href="/system-config">System configurations</a></li>
+          <li><a href="/system-logs">System logs</a></li>
         </ul>
       </section>
     </main>
@@ -195,16 +271,39 @@
       const adminBusiness = document.getElementById("admin-business");
       const adminLogin = document.getElementById("admin-login");
       const profileStatus = document.getElementById("profile-status");
+      const profileName = document.getElementById("profile-name");
+      const profileAvatar = document.getElementById("profile-avatar");
+      const profileToggle = document.getElementById("profile-toggle");
+      const profileDropdown = document.getElementById("profile-dropdown");
+      const logoutButton = document.getElementById("logout");
+
+      const logEvent = (level, tag, action, details = "") => {
+        const logStorageKey = "systemLogs";
+        const logs = JSON.parse(localStorage.getItem(logStorageKey) || "[]");
+        logs.unshift({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          level,
+          tag,
+          action,
+          details,
+        });
+        localStorage.setItem(logStorageKey, JSON.stringify(logs.slice(0, 500)));
+      };
 
       avatar.textContent = email.charAt(0).toUpperCase();
       adminEmail.textContent = email;
       adminBusiness.textContent = `Business: ${businessId}`;
       adminLogin.textContent = `Last login: ${loginAt}`;
 
+      profileName.textContent = email;
+      profileAvatar.textContent = email.charAt(0).toUpperCase();
+
       document.getElementById("copy-token").addEventListener("click", async () => {
         if (!token) {
           profileStatus.textContent = "No token stored.";
           profileStatus.classList.add("error");
+          logEvent("warning", "profile", "copy_token_failed", "No token stored");
           return;
         }
         try {
@@ -212,9 +311,11 @@
           profileStatus.textContent = "Token copied to clipboard.";
           profileStatus.classList.remove("error");
           profileStatus.classList.add("success");
+          logEvent("info", "profile", "token_copied");
         } catch (error) {
           profileStatus.textContent = "Copy failed. Please copy manually.";
           profileStatus.classList.add("error");
+          logEvent("error", "profile", "copy_token_failed", error.message);
         }
       });
 
@@ -223,7 +324,35 @@
         localStorage.removeItem("adminBusinessId");
         localStorage.removeItem("adminEmail");
         localStorage.removeItem("adminLoginAt");
+        logEvent("info", "auth", "logout");
         window.location.assign("/ui");
+      });
+
+      profileToggle.addEventListener("click", () => {
+        profileDropdown.classList.toggle("open");
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!profileToggle.contains(event.target) && !profileDropdown.contains(event.target)) {
+          profileDropdown.classList.remove("open");
+        }
+      });
+
+      logoutButton.addEventListener("click", () => {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminBusinessId");
+        localStorage.removeItem("adminEmail");
+        localStorage.removeItem("adminLoginAt");
+        logEvent("info", "auth", "logout");
+        window.location.assign("/ui");
+      });
+
+      window.addEventListener("error", (event) => {
+        logEvent("error", "system", "window_error", event.message || "Unexpected error");
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        logEvent("error", "system", "unhandled_rejection", event.reason?.message || "Unhandled promise rejection");
       });
     </script>
   </body>

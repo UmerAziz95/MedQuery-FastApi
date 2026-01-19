@@ -52,17 +52,71 @@
         color: var(--muted);
       }
 
-      .header-links {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
+      .profile-menu {
+        position: relative;
       }
 
-      .header-links a {
+      .profile-button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 12px;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(56, 189, 248, 0.3);
+        display: grid;
+        place-items: center;
+        font-weight: 600;
         color: var(--accent);
+      }
+
+      .dropdown {
+        position: absolute;
+        right: 0;
+        top: 48px;
+        min-width: 220px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45);
+        padding: 8px;
+        display: none;
+        z-index: 10;
+      }
+
+      .dropdown.open {
+        display: grid;
+        gap: 4px;
+      }
+
+      .dropdown a,
+      .dropdown button {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
+        color: var(--text);
         text-decoration: none;
         font-size: 13px;
-        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .dropdown a:hover,
+      .dropdown button:hover {
+        background: rgba(56, 189, 248, 0.12);
       }
 
       main {
@@ -247,11 +301,20 @@
         <h1>Assignment Console</h1>
         <p>Assign admins to businesses and manage workspace access in one place.</p>
       </div>
-      <div class="header-links">
-        <a href="/chat">Chat workspace</a>
-        <a href="/rag-builder">RAG builder</a>
-        <a href="/database-overview">Database overview</a>
-        <a href="/profile">Profile</a>
+      <div class="profile-menu">
+        <button class="profile-button" id="profile-toggle" type="button">
+          <span class="avatar" id="profile-avatar">A</span>
+          <span id="profile-name">Admin</span>
+        </button>
+        <div class="dropdown" id="profile-dropdown">
+          <a href="/profile">Profile</a>
+          <a href="/chat">Chat workspace</a>
+          <a href="/rag-builder">RAG builder</a>
+          <a href="/database-overview">Database overview</a>
+          <a href="/system-config">System configurations</a>
+          <a href="/system-logs">System logs</a>
+          <button type="button" id="logout">Sign out</button>
+        </div>
       </div>
     </header>
     <main>
@@ -350,9 +413,28 @@
 
       const adminBusinessInput = document.getElementById("admin-business");
       const workspaceBusinessInput = document.getElementById("workspace-business");
+      const profileName = document.getElementById("profile-name");
+      const profileAvatar = document.getElementById("profile-avatar");
+      const profileToggle = document.getElementById("profile-toggle");
+      const profileDropdown = document.getElementById("profile-dropdown");
+      const logoutButton = document.getElementById("logout");
 
       let selectedBusiness = null;
       let businesses = [];
+
+      const logEvent = (level, tag, action, details = "") => {
+        const logStorageKey = "systemLogs";
+        const logs = JSON.parse(localStorage.getItem(logStorageKey) || "[]");
+        logs.unshift({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          level,
+          tag,
+          action,
+          details,
+        });
+        localStorage.setItem(logStorageKey, JSON.stringify(logs.slice(0, 500)));
+      };
 
       const setStatus = (node, message, type = "") => {
         node.textContent = message;
@@ -370,6 +452,7 @@
         localStorage.setItem("adminToken", token);
         localStorage.setItem("assignmentToken", token);
         setStatus(tokenStatus, token ? "Token saved." : "Token cleared.", token ? "success" : "");
+        logEvent("info", "assignments", "token_saved", token ? "Token set" : "Token cleared");
         return token;
       };
 
@@ -437,9 +520,11 @@
           const data = await apiFetch("/api/admin/businesses");
           businesses = data;
           renderBusinesses();
+          logEvent("info", "assignments", "businesses_loaded", `count=${data.length}`);
         } catch (error) {
           businessList.innerHTML = `<li class="status error">${error.message}</li>`;
           businessCount.textContent = "Unavailable";
+          logEvent("error", "assignments", "businesses_load_failed", error.message);
         }
       };
 
@@ -475,10 +560,12 @@
               </tbody>
             </table>
           `;
+          logEvent("info", "assignments", "workspaces_loaded", `business=${businessClientId}`);
         } catch (error) {
           workspaceListStatus.textContent = error.message;
           workspaceListStatus.classList.add("error");
           workspaceList.innerHTML = '<div class="empty-state">Unable to load workspaces.</div>';
+          logEvent("error", "assignments", "workspaces_load_failed", error.message);
         }
       };
 
@@ -487,6 +574,7 @@
         const name = document.getElementById("new-business-name").value.trim();
         if (!businessClientId || !name) {
           setStatus(businessStatus, "Business ID and name are required.", "error");
+          logEvent("warning", "assignments", "create_business_validation_failed", "Missing business ID or name");
           return;
         }
         setStatus(businessStatus, "Creating business…");
@@ -497,8 +585,10 @@
           });
           setStatus(businessStatus, "Business created.", "success");
           await loadBusinesses();
+          logEvent("info", "assignments", "business_created", businessClientId);
         } catch (error) {
           setStatus(businessStatus, error.message, "error");
+          logEvent("error", "assignments", "business_create_failed", error.message);
         }
       };
 
@@ -509,6 +599,7 @@
         const role = document.getElementById("admin-role").value;
         if (!businessClientId || !email || !password) {
           setStatus(adminStatus, "Business, email, and password are required.", "error");
+          logEvent("warning", "assignments", "create_admin_validation_failed", "Missing admin credentials");
           return;
         }
         setStatus(adminStatus, "Creating admin…");
@@ -523,8 +614,10 @@
             }),
           });
           setStatus(adminStatus, "Admin assigned to business.", "success");
+          logEvent("info", "assignments", "admin_created", `${email} (${role})`);
         } catch (error) {
           setStatus(adminStatus, error.message, "error");
+          logEvent("error", "assignments", "admin_create_failed", error.message);
         }
       };
 
@@ -534,6 +627,7 @@
         const name = document.getElementById("workspace-name").value.trim();
         if (!businessClientId || !workspaceId || !name) {
           setStatus(workspaceStatus, "Business, workspace ID, and name are required.", "error");
+          logEvent("warning", "assignments", "create_workspace_validation_failed", "Missing workspace inputs");
           return;
         }
         setStatus(workspaceStatus, "Creating workspace…");
@@ -544,8 +638,10 @@
           });
           setStatus(workspaceStatus, "Workspace created.", "success");
           await loadWorkspaces(businessClientId);
+          logEvent("info", "assignments", "workspace_created", workspaceId);
         } catch (error) {
           setStatus(workspaceStatus, error.message, "error");
+          logEvent("error", "assignments", "workspace_create_failed", error.message);
         }
       };
 
@@ -553,6 +649,7 @@
       refreshButton.addEventListener("click", () => {
         saveToken();
         loadBusinesses();
+        logEvent("info", "assignments", "refresh_clicked");
       });
       document.getElementById("create-business").addEventListener("click", createBusiness);
       document.getElementById("create-admin").addEventListener("click", createAdmin);
@@ -562,7 +659,38 @@
       tokenInput.value = initialToken;
       if (initialToken) {
         setStatus(tokenStatus, "Loaded saved token.", "success");
+        logEvent("info", "assignments", "token_loaded");
       }
+      const email = localStorage.getItem("adminEmail") || "Admin";
+      profileName.textContent = email;
+      profileAvatar.textContent = email.charAt(0).toUpperCase();
+
+      profileToggle.addEventListener("click", () => {
+        profileDropdown.classList.toggle("open");
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!profileToggle.contains(event.target) && !profileDropdown.contains(event.target)) {
+          profileDropdown.classList.remove("open");
+        }
+      });
+
+      logoutButton.addEventListener("click", () => {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminBusinessId");
+        localStorage.removeItem("adminEmail");
+        localStorage.removeItem("adminLoginAt");
+        logEvent("info", "auth", "logout");
+        window.location.assign("/ui");
+      });
+
+      window.addEventListener("error", (event) => {
+        logEvent("error", "system", "window_error", event.message || "Unexpected error");
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        logEvent("error", "system", "unhandled_rejection", event.reason?.message || "Unhandled promise rejection");
+      });
       loadBusinesses();
     </script>
   </body>

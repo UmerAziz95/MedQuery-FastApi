@@ -327,6 +327,7 @@
           <a href="/database-overview">Database overview</a>
           <a href="/assignments">Assignments</a>
           <a href="/system-config">System configurations</a>
+          <a href="/system-logs">System logs</a>
           <button type="button" id="logout">Sign out</button>
         </div>
       </div>
@@ -449,6 +450,20 @@
       let chats = loadChats();
       let activeChatId = chats[0]?.id || null;
 
+      const logEvent = (level, tag, action, details = "") => {
+        const logStorageKey = "systemLogs";
+        const logs = JSON.parse(localStorage.getItem(logStorageKey) || "[]");
+        logs.unshift({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          level,
+          tag,
+          action,
+          details,
+        });
+        localStorage.setItem(logStorageKey, JSON.stringify(logs.slice(0, 500)));
+      };
+
       const setStatus = (node, message, type = "") => {
         node.textContent = message;
         node.classList.remove("error", "success");
@@ -518,6 +533,7 @@
         saveChats(chats);
         renderChats();
         renderMessages();
+        logEvent("info", "chat", "chat_created", newChat.id);
       };
 
       const appendMessage = (role, content) => {
@@ -584,6 +600,7 @@
         const query = inputEl.value.trim();
         if (!query) {
           setStatus(sendStatusEl, "Type a prompt before sending.", "error");
+          logEvent("warning", "chat", "chat_send_validation", "Empty prompt");
           return;
         }
 
@@ -595,6 +612,7 @@
         inputEl.value = "";
         setStatus(sessionStatusEl, "Processing...");
         setStatus(sendStatusEl, "Sending request...");
+        logEvent("info", "chat", "chat_send", `mode=${modeEl.value}`);
 
         const endpoint = modeEl.value === "retrieve" ? "/api/rag/retrieve" : "/api/chat/generate";
 
@@ -612,10 +630,12 @@
           appendMessage("assistant", JSON.stringify(responseBody, null, 2));
           setStatus(sessionStatusEl, "Response received.", "success");
           setStatus(sendStatusEl, "", "success");
+          logEvent("info", "chat", "chat_response_received");
         } catch (error) {
           appendMessage("system", `Error: ${error.message}`);
           setStatus(sessionStatusEl, "Request failed.", "error");
           setStatus(sendStatusEl, error.message, "error");
+          logEvent("error", "chat", "chat_request_failed", error.message);
         }
       };
 
@@ -641,7 +661,17 @@
         localStorage.removeItem("adminToken");
         localStorage.removeItem("adminBusinessId");
         localStorage.removeItem("adminEmail");
+        localStorage.removeItem("adminLoginAt");
+        logEvent("info", "auth", "logout");
         window.location.assign("/ui");
+      });
+
+      window.addEventListener("error", (event) => {
+        logEvent("error", "system", "window_error", event.message || "Unexpected error");
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        logEvent("error", "system", "unhandled_rejection", event.reason?.message || "Unhandled promise rejection");
       });
 
       if (!chats.length) {

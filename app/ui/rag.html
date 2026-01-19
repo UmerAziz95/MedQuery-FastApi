@@ -56,17 +56,71 @@
         font-size: 13px;
       }
 
-      .header-links {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
+      .profile-menu {
+        position: relative;
       }
 
-      .header-links a {
+      .profile-button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 12px;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(56, 189, 248, 0.3);
+        display: grid;
+        place-items: center;
+        font-weight: 600;
         color: var(--accent);
+      }
+
+      .dropdown {
+        position: absolute;
+        right: 0;
+        top: 48px;
+        min-width: 220px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45);
+        padding: 8px;
+        display: none;
+        z-index: 10;
+      }
+
+      .dropdown.open {
+        display: grid;
+        gap: 4px;
+      }
+
+      .dropdown a,
+      .dropdown button {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
+        color: var(--text);
         text-decoration: none;
         font-size: 13px;
-        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .dropdown a:hover,
+      .dropdown button:hover {
+        background: rgba(56, 189, 248, 0.12);
       }
 
       main {
@@ -237,11 +291,20 @@
         <h1>RAG Builder</h1>
         <p>Upload knowledge sources and monitor RAG coverage per business and workspace.</p>
       </div>
-      <div class="header-links">
-        <a href="/chat">Chat workspace</a>
-        <a href="/assignments">Assignments</a>
-        <a href="/database-overview">Database overview</a>
-        <a href="/profile">Profile</a>
+      <div class="profile-menu">
+        <button class="profile-button" id="profile-toggle" type="button">
+          <span class="avatar" id="profile-avatar">A</span>
+          <span id="profile-name">Admin</span>
+        </button>
+        <div class="dropdown" id="profile-dropdown">
+          <a href="/profile">Profile</a>
+          <a href="/chat">Chat workspace</a>
+          <a href="/assignments">Assignments</a>
+          <a href="/database-overview">Database overview</a>
+          <a href="/system-config">System configurations</a>
+          <a href="/system-logs">System logs</a>
+          <button type="button" id="logout">Sign out</button>
+        </div>
       </div>
     </header>
 
@@ -303,6 +366,11 @@
       const workspaceStatus = document.getElementById("workspace-status");
       const documentsTable = document.getElementById("documents-table");
       const refreshOverviewButton = document.getElementById("refresh-overview");
+      const profileName = document.getElementById("profile-name");
+      const profileAvatar = document.getElementById("profile-avatar");
+      const profileToggle = document.getElementById("profile-toggle");
+      const profileDropdown = document.getElementById("profile-dropdown");
+      const logoutButton = document.getElementById("logout");
 
       const chunkWordsInput = document.getElementById("chunk-words");
       const overlapWordsInput = document.getElementById("overlap-words");
@@ -310,6 +378,20 @@
 
       let businesses = [];
       let workspaces = [];
+
+      const logEvent = (level, tag, action, details = "") => {
+        const logStorageKey = "systemLogs";
+        const logs = JSON.parse(localStorage.getItem(logStorageKey) || "[]");
+        logs.unshift({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          level,
+          tag,
+          action,
+          details,
+        });
+        localStorage.setItem(logStorageKey, JSON.stringify(logs.slice(0, 500)));
+      };
 
       const setStatus = (node, message, type = "") => {
         node.textContent = message;
@@ -374,9 +456,11 @@
           if (businesses.length) {
             await loadWorkspaces(businessSelect.value || businesses[0].business_client_id);
           }
+          logEvent("info", "rag", "businesses_loaded", `count=${businesses.length}`);
         } catch (error) {
           populateBusinesses();
           setStatus(overviewStatus, `Unable to load businesses: ${error.message}`, "error");
+          logEvent("error", "rag", "businesses_load_failed", error.message);
         }
       };
 
@@ -392,9 +476,11 @@
             workspaceSelect.value = workspaces[0].workspace_id;
             await loadDocuments();
           }
+          logEvent("info", "rag", "workspaces_loaded", `business=${businessClientId} count=${workspaces.length}`);
         } catch (error) {
           workspaceSelect.innerHTML = '<option value="">Workspaces unavailable</option>';
           setStatus(workspaceStatus, `Unable to load workspaces: ${error.message}`, "error");
+          logEvent("error", "rag", "workspaces_load_failed", error.message);
         }
       };
 
@@ -441,9 +527,16 @@
               </tbody>
             </table>
           `;
+          logEvent(
+            "info",
+            "rag",
+            "documents_loaded",
+            `business=${businessClientId} workspace=${workspaceId} count=${documents.length}`
+          );
         } catch (error) {
           documentsTable.innerHTML = '<div class="empty-state">Unable to load documents.</div>';
           setStatus(workspaceStatus, `Unable to load documents: ${error.message}`, "error");
+          logEvent("error", "rag", "documents_load_failed", error.message);
         }
       };
 
@@ -453,10 +546,12 @@
         const file = ragFileInput.files[0];
         if (!businessClientId || !workspaceId) {
           setStatus(uploadStatus, "Select a business and workspace.", "error");
+          logEvent("warning", "rag", "upload_validation_failed", "Missing business/workspace.");
           return;
         }
         if (!file) {
           setStatus(uploadStatus, "Select a PDF or TXT file.", "error");
+          logEvent("warning", "rag", "upload_validation_failed", "Missing file.");
           return;
         }
         const formData = new FormData();
@@ -483,8 +578,15 @@
           ragFileInput.value = "";
           await loadDocuments();
           await loadOverview();
+          logEvent(
+            "info",
+            "rag",
+            "document_uploaded",
+            `business=${businessClientId} workspace=${workspaceId} file=${file.name}`
+          );
         } catch (error) {
           setStatus(uploadStatus, `Upload failed: ${error.message}`, "error");
+          logEvent("error", "rag", "document_upload_failed", error.message);
         }
       };
 
@@ -544,20 +646,54 @@
             )
             .join("");
           setStatus(overviewStatus, "Overview updated.", "success");
+          logEvent("info", "rag", "overview_loaded", `businesses=${overviewItems.length}`);
         } catch (error) {
           overviewGrid.innerHTML = '<div class="empty-state">Unable to load overview.</div>';
           setStatus(overviewStatus, `Overview failed: ${error.message}`, "error");
+          logEvent("error", "rag", "overview_failed", error.message);
         }
       };
 
       businessSelect.addEventListener("change", async () => {
         await loadWorkspaces(businessSelect.value);
         await loadOverview();
+        logEvent("info", "rag", "business_selected", businessSelect.value);
       });
 
       workspaceSelect.addEventListener("change", loadDocuments);
       uploadButton.addEventListener("click", uploadDocument);
       refreshOverviewButton.addEventListener("click", loadOverview);
+
+      const email = localStorage.getItem("adminEmail") || "Admin";
+      profileName.textContent = email;
+      profileAvatar.textContent = email.charAt(0).toUpperCase();
+
+      profileToggle.addEventListener("click", () => {
+        profileDropdown.classList.toggle("open");
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!profileToggle.contains(event.target) && !profileDropdown.contains(event.target)) {
+          profileDropdown.classList.remove("open");
+        }
+      });
+
+      logoutButton.addEventListener("click", () => {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminBusinessId");
+        localStorage.removeItem("adminEmail");
+        localStorage.removeItem("adminLoginAt");
+        logEvent("info", "auth", "logout");
+        window.location.assign("/ui");
+      });
+
+      window.addEventListener("error", (event) => {
+        logEvent("error", "system", "window_error", event.message || "Unexpected error");
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        logEvent("error", "system", "unhandled_rejection", event.reason?.message || "Unhandled promise rejection");
+      });
 
       loadBusinesses().then(loadOverview);
     </script>

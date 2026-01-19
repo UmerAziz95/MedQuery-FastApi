@@ -12,6 +12,7 @@ _ASSIGNMENTS_PATH = Path(__file__).resolve().parents[2] / "ui" / "assignments.ht
 _PROFILE_PATH = Path(__file__).resolve().parents[2] / "ui" / "profile.html"
 _SYSTEM_CONFIG_PATH = Path(__file__).resolve().parents[2] / "ui" / "system-config.html"
 _RAG_PATH = Path(__file__).resolve().parents[2] / "ui" / "rag.html"
+_SYSTEM_LOGS_PATH = Path(__file__).resolve().parents[2] / "ui" / "system-logs.html"
 
 
 @router.get("/ui", response_class=HTMLResponse)
@@ -59,4 +60,10 @@ async def system_config() -> HTMLResponse:
 @router.get("/rag-builder", response_class=HTMLResponse)
 async def rag_builder() -> HTMLResponse:
     html_content = _RAG_PATH.read_text(encoding="utf-8")
+    return HTMLResponse(content=html_content)
+
+
+@router.get("/system-logs", response_class=HTMLResponse)
+async def system_logs() -> HTMLResponse:
+    html_content = _SYSTEM_LOGS_PATH.read_text(encoding="utf-8")
     return HTMLResponse(content=html_content)
