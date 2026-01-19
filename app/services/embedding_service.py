@@ -22,6 +22,8 @@ class EmbeddingService:
 
     async def embed_texts(self, texts: Sequence[str], model: str) -> list[list[float]]:
         self.validate_dimension(model)
+        if not texts:
+            return []
         if not self.settings.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY not configured")
         payload = {"input": list(texts), "model": model}

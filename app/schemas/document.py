@@ -1,8 +1,10 @@
-from pydantic import BaseModel, Field
+import uuid
+
+from pydantic import BaseModel
 
 
 class DocumentOut(BaseModel):
-    id: str
+    id: uuid.UUID
     filename: str
     file_type: str
     status: str
@@ -19,8 +21,8 @@ class DocumentUploadResponse(BaseModel):
 
 
 class DocumentChunkOut(BaseModel):
-    id: str
-    document_id: str
+    id: uuid.UUID
+    document_id: uuid.UUID
     chunk_index: int
     page_number: int | None = None
     content: str

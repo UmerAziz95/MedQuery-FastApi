@@ -81,7 +81,25 @@ async def upload_document(
             select(WorkspaceConfig).where(WorkspaceConfig.workspace_id == workspace.id)
         )
     ).scalar_one()
-    await service.ingest_document(session, document, config, chunk_words, overlap_words)
+    try:
+        await service.ingest_document(session, document, config, chunk_words, overlap_words)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        document.status = "failed"
+        document.meta_json = str(exc)
+        await session.commit()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        document.status = "failed"
+        document.meta_json = str(exc)
+        await session.commit()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        document.status = "failed"
+        document.meta_json = str(exc)
+        await session.commit()
+        raise HTTPException(status_code=500, detail="Document ingest failed") from exc
 
     return DocumentUploadResponse(
         document_id=str(document.id),

@@ -34,6 +34,12 @@ class RagIngestService:
             for chunk in self._chunk_text(page_text, chunk_words, overlap_words):
                 chunks.append((page_number, chunk))
 
+        if not chunks:
+            document.status = "empty"
+            document.indexed_at = datetime.utcnow()
+            await session.commit()
+            return
+
         embeddings = await self.embedding_service.embed_texts(
             [chunk for _, chunk in chunks], config.embedding_model
         )
