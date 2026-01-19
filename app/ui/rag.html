@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RAG Builder</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --panel: #111827;
+        --panel-2: #1f2937;
+        --panel-3: #0b1220;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --accent-2: #0ea5e9;
+        --success: #22c55e;
+        --border: #334155;
+        --error: #ef4444;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        padding: 20px 32px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 600;
+      }
+
+      header p {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .profile-menu {
+        position: relative;
+      }
+
+      .profile-button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 12px;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(56, 189, 248, 0.3);
+        display: grid;
+        place-items: center;
+        font-weight: 600;
+        color: var(--accent);
+      }
+
+      .dropdown {
+        position: absolute;
+        right: 0;
+        top: 48px;
+        min-width: 220px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45);
+        padding: 8px;
+        display: none;
+        z-index: 10;
+      }
+
+      .dropdown.open {
+        display: grid;
+        gap: 4px;
+      }
+
+      .dropdown a,
+      .dropdown button {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .dropdown a:hover,
+      .dropdown button:hover {
+        background: rgba(56, 189, 248, 0.12);
+      }
+
+      main {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 24px;
+        padding: 24px 32px 40px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+      }
+
+      label {
+        display: block;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      input,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        padding: 10px 12px;
+        background: var(--panel-2);
+        color: var(--text);
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+
+      input:focus,
+      select:focus {
+        outline: 2px solid rgba(56, 189, 248, 0.35);
+        border-color: rgba(56, 189, 248, 0.6);
+      }
+
+      button {
+        width: 100%;
+        border: none;
+        border-radius: 12px;
+        padding: 12px 16px;
+        background: var(--accent);
+        color: #0f172a;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+
+      button:hover {
+        background: var(--accent-2);
+        transform: translateY(-1px);
+      }
+
+      button.secondary {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .status {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .status.success {
+        color: var(--success);
+      }
+
+      .status.error {
+        color: var(--error);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      th {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.15);
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .overview-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+      }
+
+      .card {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .card h3 {
+        margin: 0;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .card p {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .empty-state {
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px dashed var(--border);
+        color: var(--muted);
+        text-align: center;
+      }
+
+      @media (max-width: 1024px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>RAG Builder</h1>
+        <p>Upload knowledge sources and monitor RAG coverage per business and workspace.</p>
+      </div>
+      <div class="profile-menu">
+        <button class="profile-button" id="profile-toggle" type="button">
+          <span class="avatar" id="profile-avatar">A</span>
+          <span id="profile-name">Admin</span>
+        </button>
+        <div class="dropdown" id="profile-dropdown">
+          <a href="/profile">Profile</a>
+          <a href="/chat">Chat workspace</a>
+          <a href="/assignments">Assignments</a>
+          <a href="/database-overview">Database overview</a>
+          <a href="/system-config">System configurations</a>
+          <a href="/system-logs">System logs</a>
+          <button type="button" id="logout">Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <aside class="panel stack">
+        <div>
+          <h2>RAG Upload</h2>
+          <p class="status">Associate documents with a business/tenant and workspace.</p>
+        </div>
+
+        <label for="business-select">Business / Tenant</label>
+        <select id="business-select"></select>
+
+        <label for="workspace-select">Workspace</label>
+        <select id="workspace-select"></select>
+
+        <label for="rag-file">Document File (PDF/TXT)</label>
+        <input id="rag-file" type="file" accept=".pdf,.txt" />
+
+        <label for="chunk-words">Chunk Words</label>
+        <input id="chunk-words" type="number" min="100" placeholder="400" />
+
+        <label for="overlap-words">Overlap Words</label>
+        <input id="overlap-words" type="number" min="0" placeholder="40" />
+
+        <button id="upload-button" type="button">Upload RAG Document</button>
+        <div class="status" id="upload-status">Awaiting upload.</div>
+
+        <button id="refresh-overview" class="secondary" type="button">Refresh Overview</button>
+        <div class="status" id="overview-status">Overview is ready.</div>
+      </aside>
+
+      <section class="stack">
+        <div class="panel">
+          <h2>RAG Coverage Overview</h2>
+          <div class="overview-grid" id="overview-grid"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Workspace RAG Details</h2>
+          <p class="status" id="workspace-status">Select a workspace to load documents.</p>
+          <div id="documents-table"></div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const token = localStorage.getItem("adminToken");
+      if (!token) {
+        window.location.assign("/ui");
+      }
+
+      const businessSelect = document.getElementById("business-select");
+      const workspaceSelect = document.getElementById("workspace-select");
+      const uploadButton = document.getElementById("upload-button");
+      const uploadStatus = document.getElementById("upload-status");
+      const overviewGrid = document.getElementById("overview-grid");
+      const overviewStatus = document.getElementById("overview-status");
+      const workspaceStatus = document.getElementById("workspace-status");
+      const documentsTable = document.getElementById("documents-table");
+      const refreshOverviewButton = document.getElementById("refresh-overview");
+      const profileName = document.getElementById("profile-name");
+      const profileAvatar = document.getElementById("profile-avatar");
+      const profileToggle = document.getElementById("profile-toggle");
+      const profileDropdown = document.getElementById("profile-dropdown");
+      const logoutButton = document.getElementById("logout");
+
+      const chunkWordsInput = document.getElementById("chunk-words");
+      const overlapWordsInput = document.getElementById("overlap-words");
+      const ragFileInput = document.getElementById("rag-file");
+
+      let businesses = [];
+      let workspaces = [];
+
+      const logEvent = (level, tag, action, details = "") => {
+        const logStorageKey = "systemLogs";
+        const logs = JSON.parse(localStorage.getItem(logStorageKey) || "[]");
+        logs.unshift({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          level,
+          tag,
+          action,
+          details,
+        });
+        localStorage.setItem(logStorageKey, JSON.stringify(logs.slice(0, 500)));
+      };
+
+      const setStatus = (node, message, type = "") => {
+        node.textContent = message;
+        node.classList.remove("error", "success");
+        if (type) {
+          node.classList.add(type);
+        }
+      };
+
+      const apiFetch = async (path, options = {}) => {
+        const response = await fetch(path, {
+          ...options,
+          headers: {
+            ...(options.headers || {}),
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!response.ok) {
+          const errorBody = await response.json().catch(() => ({}));
+          throw new Error(errorBody.detail || "Request failed");
+        }
+        return response.json();
+      };
+
+      const populateBusinesses = () => {
+        if (!businesses.length) {
+          businessSelect.innerHTML = '<option value="">No businesses available</option>';
+          workspaceSelect.innerHTML = '<option value="">No workspaces available</option>';
+          return;
+        }
+
+        businessSelect.innerHTML = businesses
+          .map(
+            (business) =>
+              `<option value="${business.business_client_id}">${business.name} (${business.business_client_id})</option>`
+          )
+          .join("");
+      };
+
+      const populateWorkspaces = () => {
+        if (!workspaces.length) {
+          workspaceSelect.innerHTML = '<option value="">No workspaces available</option>';
+          return;
+        }
+
+        workspaceSelect.innerHTML = workspaces
+          .map(
+            (workspace) =>
+              `<option value="${workspace.workspace_id}">${workspace.name} (${workspace.workspace_id})</option>`
+          )
+          .join("");
+      };
+
+      const loadBusinesses = async () => {
+        try {
+          businesses = await apiFetch("/api/admin/businesses");
+          populateBusinesses();
+          const preferredBusiness = localStorage.getItem("adminBusinessId");
+          if (preferredBusiness) {
+            businessSelect.value = preferredBusiness;
+          }
+          if (businesses.length) {
+            await loadWorkspaces(businessSelect.value || businesses[0].business_client_id);
+          }
+          logEvent("info", "rag", "businesses_loaded", `count=${businesses.length}`);
+        } catch (error) {
+          populateBusinesses();
+          setStatus(overviewStatus, `Unable to load businesses: ${error.message}`, "error");
+          logEvent("error", "rag", "businesses_load_failed", error.message);
+        }
+      };
+
+      const loadWorkspaces = async (businessClientId) => {
+        if (!businessClientId) {
+          workspaceSelect.innerHTML = '<option value="">Select a business first</option>';
+          return;
+        }
+        try {
+          workspaces = await apiFetch(`/api/admin/businesses/${businessClientId}/workspaces`);
+          populateWorkspaces();
+          if (workspaces.length) {
+            workspaceSelect.value = workspaces[0].workspace_id;
+            await loadDocuments();
+          }
+          logEvent("info", "rag", "workspaces_loaded", `business=${businessClientId} count=${workspaces.length}`);
+        } catch (error) {
+          workspaceSelect.innerHTML = '<option value="">Workspaces unavailable</option>';
+          setStatus(workspaceStatus, `Unable to load workspaces: ${error.message}`, "error");
+          logEvent("error", "rag", "workspaces_load_failed", error.message);
+        }
+      };
+
+      const loadDocuments = async () => {
+        const businessClientId = businessSelect.value;
+        const workspaceId = workspaceSelect.value;
+        if (!businessClientId || !workspaceId) {
+          documentsTable.innerHTML = '<div class="empty-state">Select a business and workspace.</div>';
+          return;
+        }
+        setStatus(workspaceStatus, `Loading RAG documents for ${workspaceId}...`);
+        try {
+          const documents = await apiFetch(
+            `/api/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents`
+          );
+          setStatus(workspaceStatus, "", "success");
+          if (!documents.length) {
+            documentsTable.innerHTML = '<div class="empty-state">No RAG documents found.</div>';
+            return;
+          }
+          documentsTable.innerHTML = `
+            <table>
+              <thead>
+                <tr>
+                  <th>Document ID</th>
+                  <th>Filename</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${documents
+                  .map(
+                    (document) => `
+                      <tr>
+                        <td>${document.id}</td>
+                        <td>${document.filename}</td>
+                        <td>${document.file_type}</td>
+                        <td>${document.status}</td>
+                      </tr>
+                    `
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          `;
+          logEvent(
+            "info",
+            "rag",
+            "documents_loaded",
+            `business=${businessClientId} workspace=${workspaceId} count=${documents.length}`
+          );
+        } catch (error) {
+          documentsTable.innerHTML = '<div class="empty-state">Unable to load documents.</div>';
+          setStatus(workspaceStatus, `Unable to load documents: ${error.message}`, "error");
+          logEvent("error", "rag", "documents_load_failed", error.message);
+        }
+      };
+
+      const uploadDocument = async () => {
+        const businessClientId = businessSelect.value;
+        const workspaceId = workspaceSelect.value;
+        const file = ragFileInput.files[0];
+        if (!businessClientId || !workspaceId) {
+          setStatus(uploadStatus, "Select a business and workspace.", "error");
+          logEvent("warning", "rag", "upload_validation_failed", "Missing business/workspace.");
+          return;
+        }
+        if (!file) {
+          setStatus(uploadStatus, "Select a PDF or TXT file.", "error");
+          logEvent("warning", "rag", "upload_validation_failed", "Missing file.");
+          return;
+        }
+        const formData = new FormData();
+        formData.append("file", file);
+        if (chunkWordsInput.value) {
+          formData.append("chunk_words", chunkWordsInput.value);
+        }
+        if (overlapWordsInput.value) {
+          formData.append("overlap_words", overlapWordsInput.value);
+        }
+        setStatus(uploadStatus, "Uploading document...");
+        try {
+          await apiFetch(
+            `/api/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents/upload`,
+            {
+              method: "POST",
+              body: formData,
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+          setStatus(uploadStatus, "Document uploaded.", "success");
+          ragFileInput.value = "";
+          await loadDocuments();
+          await loadOverview();
+          logEvent(
+            "info",
+            "rag",
+            "document_uploaded",
+            `business=${businessClientId} workspace=${workspaceId} file=${file.name}`
+          );
+        } catch (error) {
+          setStatus(uploadStatus, `Upload failed: ${error.message}`, "error");
+          logEvent("error", "rag", "document_upload_failed", error.message);
+        }
+      };
+
+      const loadOverview = async () => {
+        overviewGrid.innerHTML = "";
+        setStatus(overviewStatus, "Loading overview...");
+        try {
+          const overviewItems = await Promise.all(
+            businesses.map(async (business) => {
+              const workspaces = await apiFetch(
+                `/api/admin/businesses/${business.business_client_id}/workspaces`
+              );
+              const workspaceSummaries = await Promise.all(
+                workspaces.map(async (workspace) => {
+                  const docs = await apiFetch(
+                    `/api/admin/businesses/${business.business_client_id}/workspaces/${workspace.workspace_id}/documents`
+                  );
+                  return {
+                    workspace: workspace.workspace_id,
+                    name: workspace.name,
+                    count: docs.length,
+                  };
+                })
+              );
+              const totalDocs = workspaceSummaries.reduce((sum, entry) => sum + entry.count, 0);
+              return {
+                business: business.business_client_id,
+                name: business.name,
+                totalDocs,
+                workspaceSummaries,
+              };
+            })
+          );
+
+          if (!overviewItems.length) {
+            overviewGrid.innerHTML = '<div class="empty-state">No businesses available.</div>';
+            setStatus(overviewStatus, "No businesses found.", "error");
+            return;
+          }
+
+          overviewGrid.innerHTML = overviewItems
+            .map(
+              (item) => `
+                <div class="card">
+                  <h3>${item.name} (${item.business})</h3>
+                  <p>${item.totalDocs} RAG documents</p>
+                  <div class="status">
+                    ${item.workspaceSummaries
+                      .map(
+                        (workspace) =>
+                          `${workspace.name} (${workspace.workspace}): ${workspace.count}`
+                      )
+                      .join("<br />")}
+                  </div>
+                </div>
+              `
+            )
+            .join("");
+          setStatus(overviewStatus, "Overview updated.", "success");
+          logEvent("info", "rag", "overview_loaded", `businesses=${overviewItems.length}`);
+        } catch (error) {
+          overviewGrid.innerHTML = '<div class="empty-state">Unable to load overview.</div>';
+          setStatus(overviewStatus, `Overview failed: ${error.message}`, "error");
+          logEvent("error", "rag", "overview_failed", error.message);
+        }
+      };
+
+      businessSelect.addEventListener("change", async () => {
+        await loadWorkspaces(businessSelect.value);
+        await loadOverview();
+        logEvent("info", "rag", "business_selected", businessSelect.value);
+      });
+
+      workspaceSelect.addEventListener("change", loadDocuments);
+      uploadButton.addEventListener("click", uploadDocument);
+      refreshOverviewButton.addEventListener("click", loadOverview);
+
+      const email = localStorage.getItem("adminEmail") || "Admin";
+      profileName.textContent = email;
+      profileAvatar.textContent = email.charAt(0).toUpperCase();
+
+      profileToggle.addEventListener("click", () => {
+        profileDropdown.classList.toggle("open");
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!profileToggle.contains(event.target) && !profileDropdown.contains(event.target)) {
+          profileDropdown.classList.remove("open");
+        }
+      });
+
+      logoutButton.addEventListener("click", () => {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminBusinessId");
+        localStorage.removeItem("adminEmail");
+        localStorage.removeItem("adminLoginAt");
+        logEvent("info", "auth", "logout");
+        window.location.assign("/ui");
+      });
+
+      window.addEventListener("error", (event) => {
+        logEvent("error", "system", "window_error", event.message || "Unexpected error");
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        logEvent("error", "system", "unhandled_rejection", event.reason?.message || "Unhandled promise rejection");
+      });
+
+      loadBusinesses().then(loadOverview);
+    </script>
+  </body>
+</html>

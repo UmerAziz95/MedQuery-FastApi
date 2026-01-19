@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>System Configurations</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --panel: #111827;
+        --panel-2: #1f2937;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --border: #334155;
+        --success: #22c55e;
+        --error: #ef4444;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+      }
+
+      header {
+        padding: 24px 32px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 24px;
+      }
+
+      .profile-menu {
+        position: relative;
+      }
+
+      .profile-button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 12px;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(56, 189, 248, 0.3);
+        display: grid;
+        place-items: center;
+        font-weight: 600;
+        color: var(--accent);
+      }
+
+      .dropdown {
+        position: absolute;
+        right: 0;
+        top: 48px;
+        min-width: 220px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45);
+        padding: 8px;
+        display: none;
+        z-index: 10;
+      }
+
+      .dropdown.open {
+        display: grid;
+        gap: 4px;
+      }
+
+      .dropdown a,
+      .dropdown button {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .dropdown a:hover,
+      .dropdown button:hover {
+        background: rgba(56, 189, 248, 0.12);
+      }
+
+      main {
+        padding: 32px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 24px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+      }
+
+      label {
+        display: block;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        padding: 10px 12px;
+        background: var(--panel-2);
+        color: var(--text);
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+
+      textarea {
+        min-height: 80px;
+        resize: vertical;
+      }
+
+      button {
+        width: 100%;
+        border: none;
+        border-radius: 12px;
+        padding: 12px 16px;
+        background: var(--accent);
+        color: #0f172a;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .status {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 8px;
+      }
+
+      .status.success {
+        color: var(--success);
+      }
+
+      .status.error {
+        color: var(--error);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>System Configurations</h1>
+        <p class="status">Manage default chat preferences for the workspace.</p>
+      </div>
+      <div class="profile-menu">
+        <button class="profile-button" id="profile-toggle" type="button">
+          <span class="avatar" id="profile-avatar">A</span>
+          <span id="profile-name">Admin</span>
+        </button>
+        <div class="dropdown" id="profile-dropdown">
+          <a href="/profile">Profile</a>
+          <a href="/chat">Chat workspace</a>
+          <a href="/rag-builder">RAG builder</a>
+          <a href="/database-overview">Database overview</a>
+          <a href="/assignments">Assignments</a>
+          <a href="/system-logs">System logs</a>
+          <button type="button" id="logout">Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>Chat Defaults</h2>
+        <label for="default-business">Business Client ID</label>
+        <input id="default-business" />
+
+        <label for="default-workspace">Workspace ID</label>
+        <input id="default-workspace" />
+
+        <label for="default-user">Default User ID</label>
+        <input id="default-user" />
+
+        <button id="save-defaults" type="button">Save defaults</button>
+        <div class="status" id="defaults-status"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Response Preferences</h2>
+        <label for="default-temperature">Temperature</label>
+        <input id="default-temperature" type="number" step="0.1" min="0" max="2" />
+
+        <label for="default-max-tokens">Max Tokens</label>
+        <input id="default-max-tokens" type="number" min="1" />
+
+        <label for="default-prompt">Default Prompt Engineering</label>
+        <textarea id="default-prompt"></textarea>
+
+        <button id="save-preferences" type="button">Save preferences</button>
+        <div class="status" id="preferences-status"></div>
+      </section>
+    </main>
+
+    <script>
+      const defaults = JSON.parse(localStorage.getItem("chatDefaults") || "{}");
+      const preferences = JSON.parse(localStorage.getItem("chatPreferences") || "{}");
+      const profileName = document.getElementById("profile-name");
+      const profileAvatar = document.getElementById("profile-avatar");
+      const profileToggle = document.getElementById("profile-toggle");
+      const profileDropdown = document.getElementById("profile-dropdown");
+      const logoutButton = document.getElementById("logout");
+
+      const businessInput = document.getElementById("default-business");
+      const workspaceInput = document.getElementById("default-workspace");
+      const userInput = document.getElementById("default-user");
+      const temperatureInput = document.getElementById("default-temperature");
+      const maxTokensInput = document.getElementById("default-max-tokens");
+      const promptInput = document.getElementById("default-prompt");
+
+      businessInput.value = defaults.businessClientId || localStorage.getItem("adminBusinessId") || "";
+      workspaceInput.value = defaults.workspaceId || "";
+      userInput.value = defaults.userId || "";
+      temperatureInput.value = preferences.temperature ?? 0.2;
+      maxTokensInput.value = preferences.maxTokens ?? 600;
+      promptInput.value = preferences.promptEngineering || "";
+
+      const logEvent = (level, tag, action, details = "") => {
+        const logStorageKey = "systemLogs";
+        const logs = JSON.parse(localStorage.getItem(logStorageKey) || "[]");
+        logs.unshift({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          level,
+          tag,
+          action,
+          details,
+        });
+        localStorage.setItem(logStorageKey, JSON.stringify(logs.slice(0, 500)));
+      };
+
+      const setStatus = (node, message, type = "") => {
+        node.textContent = message;
+        node.classList.remove("success", "error");
+        if (type) {
+          node.classList.add(type);
+        }
+      };
+
+      document.getElementById("save-defaults").addEventListener("click", () => {
+        localStorage.setItem(
+          "chatDefaults",
+          JSON.stringify({
+            businessClientId: businessInput.value.trim(),
+            workspaceId: workspaceInput.value.trim(),
+            userId: userInput.value.trim(),
+          })
+        );
+        setStatus(document.getElementById("defaults-status"), "Defaults saved.", "success");
+        logEvent("info", "system-config", "defaults_saved");
+      });
+
+      document.getElementById("save-preferences").addEventListener("click", () => {
+        localStorage.setItem(
+          "chatPreferences",
+          JSON.stringify({
+            temperature: parseFloat(temperatureInput.value || "0.2"),
+            maxTokens: parseInt(maxTokensInput.value || "600", 10),
+            promptEngineering: promptInput.value.trim(),
+          })
+        );
+        setStatus(document.getElementById("preferences-status"), "Preferences saved.", "success");
+        logEvent("info", "system-config", "preferences_saved");
+      });
+
+      const email = localStorage.getItem("adminEmail") || "Admin";
+      profileName.textContent = email;
+      profileAvatar.textContent = email.charAt(0).toUpperCase();
+
+      profileToggle.addEventListener("click", () => {
+        profileDropdown.classList.toggle("open");
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!profileToggle.contains(event.target) && !profileDropdown.contains(event.target)) {
+          profileDropdown.classList.remove("open");
+        }
+      });
+
+      logoutButton.addEventListener("click", () => {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminBusinessId");
+        localStorage.removeItem("adminEmail");
+        localStorage.removeItem("adminLoginAt");
+        logEvent("info", "auth", "logout");
+        window.location.assign("/ui");
+      });
+
+      window.addEventListener("error", (event) => {
+        logEvent("error", "system", "window_error", event.message || "Unexpected error");
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        logEvent("error", "system", "unhandled_rejection", event.reason?.message || "Unhandled promise rejection");
+      });
+    </script>
+  </body>
+</html>

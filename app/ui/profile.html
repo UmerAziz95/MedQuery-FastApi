@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Profile</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --panel: #111827;
+        --panel-2: #1f2937;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --border: #334155;
+        --error: #ef4444;
+        --success: #22c55e;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+      }
+
+      header {
+        padding: 24px 32px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 24px;
+      }
+
+      .profile-menu {
+        position: relative;
+      }
+
+      .profile-button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 12px;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(56, 189, 248, 0.3);
+        display: grid;
+        place-items: center;
+        font-weight: 600;
+        color: var(--accent);
+      }
+
+      .dropdown {
+        position: absolute;
+        right: 0;
+        top: 48px;
+        min-width: 220px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45);
+        padding: 8px;
+        display: none;
+        z-index: 10;
+      }
+
+      .dropdown.open {
+        display: grid;
+        gap: 4px;
+      }
+
+      .dropdown a,
+      .dropdown button {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .dropdown a:hover,
+      .dropdown button:hover {
+        background: rgba(56, 189, 248, 0.12);
+      }
+
+      main {
+        padding: 32px;
+        display: grid;
+        grid-template-columns: minmax(280px, 360px) 1fr;
+        gap: 24px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+      }
+
+      .profile-card {
+        display: grid;
+        gap: 12px;
+      }
+
+      .avatar {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: rgba(56, 189, 248, 0.2);
+        color: var(--accent);
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 22px;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .data-row {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .data-row span {
+        font-size: 13px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .data-row strong {
+        font-size: 14px;
+      }
+
+      button {
+        border: none;
+        border-radius: 12px;
+        padding: 10px 16px;
+        background: var(--accent);
+        color: #0f172a;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      button.secondary {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .status {
+        font-size: 12px;
+        margin-top: 8px;
+        color: var(--muted);
+      }
+
+      .status.success {
+        color: var(--success);
+      }
+
+      .status.error {
+        color: var(--error);
+      }
+
+      @media (max-width: 960px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Admin Profile</h1>
+        <p class="muted">View and manage your admin session details.</p>
+      </div>
+      <div class="profile-menu">
+        <button class="profile-button" id="profile-toggle" type="button">
+          <span class="avatar" id="profile-avatar">A</span>
+          <span id="profile-name">Admin</span>
+        </button>
+        <div class="dropdown" id="profile-dropdown">
+          <a href="/chat">Chat workspace</a>
+          <a href="/rag-builder">RAG builder</a>
+          <a href="/database-overview">Database overview</a>
+          <a href="/assignments">Assignments</a>
+          <a href="/system-config">System configurations</a>
+          <a href="/system-logs">System logs</a>
+          <button type="button" id="logout">Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel profile-card">
+        <div class="avatar" id="avatar">A</div>
+        <div>
+          <strong id="admin-email">Admin</strong>
+          <div class="muted" id="admin-business">Business: -</div>
+        </div>
+        <div class="muted" id="admin-login">Last login: -</div>
+        <div class="actions">
+          <button id="copy-token" type="button">Copy token</button>
+          <button id="sign-out" class="secondary" type="button">Sign out</button>
+        </div>
+        <div class="status" id="profile-status"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Quick navigation</h2>
+        <p class="muted">Jump to related admin modules.</p>
+        <ul class="muted">
+          <li><a href="/rag-builder">RAG builder</a></li>
+          <li><a href="/database-overview">Database overview</a></li>
+          <li><a href="/assignments">Assignments</a></li>
+          <li><a href="/system-config">System configurations</a></li>
+          <li><a href="/system-logs">System logs</a></li>
+        </ul>
+      </section>
+    </main>
+
+    <script>
+      const token = localStorage.getItem("adminToken");
+      const email = localStorage.getItem("adminEmail") || "Admin";
+      const businessId = localStorage.getItem("adminBusinessId") || "-";
+      const loginAt = localStorage.getItem("adminLoginAt") || "-";
+
+      const avatar = document.getElementById("avatar");
+      const adminEmail = document.getElementById("admin-email");
+      const adminBusiness = document.getElementById("admin-business");
+      const adminLogin = document.getElementById("admin-login");
+      const profileStatus = document.getElementById("profile-status");
+      const profileName = document.getElementById("profile-name");
+      const profileAvatar = document.getElementById("profile-avatar");
+      const profileToggle = document.getElementById("profile-toggle");
+      const profileDropdown = document.getElementById("profile-dropdown");
+      const logoutButton = document.getElementById("logout");
+
+      const logEvent = (level, tag, action, details = "") => {
+        const logStorageKey = "systemLogs";
+        const logs = JSON.parse(localStorage.getItem(logStorageKey) || "[]");
+        logs.unshift({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          level,
+          tag,
+          action,
+          details,
+        });
+        localStorage.setItem(logStorageKey, JSON.stringify(logs.slice(0, 500)));
+      };
+
+      avatar.textContent = email.charAt(0).toUpperCase();
+      adminEmail.textContent = email;
+      adminBusiness.textContent = `Business: ${businessId}`;
+      adminLogin.textContent = `Last login: ${loginAt}`;
+
+      profileName.textContent = email;
+      profileAvatar.textContent = email.charAt(0).toUpperCase();
+
+      document.getElementById("copy-token").addEventListener("click", async () => {
+        if (!token) {
+          profileStatus.textContent = "No token stored.";
+          profileStatus.classList.add("error");
+          logEvent("warning", "profile", "copy_token_failed", "No token stored");
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(token);
+          profileStatus.textContent = "Token copied to clipboard.";
+          profileStatus.classList.remove("error");
+          profileStatus.classList.add("success");
+          logEvent("info", "profile", "token_copied");
+        } catch (error) {
+          profileStatus.textContent = "Copy failed. Please copy manually.";
+          profileStatus.classList.add("error");
+          logEvent("error", "profile", "copy_token_failed", error.message);
+        }
+      });
+
+      document.getElementById("sign-out").addEventListener("click", () => {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminBusinessId");
+        localStorage.removeItem("adminEmail");
+        localStorage.removeItem("adminLoginAt");
+        logEvent("info", "auth", "logout");
+        window.location.assign("/ui");
+      });
+
+      profileToggle.addEventListener("click", () => {
+        profileDropdown.classList.toggle("open");
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!profileToggle.contains(event.target) && !profileDropdown.contains(event.target)) {
+          profileDropdown.classList.remove("open");
+        }
+      });
+
+      logoutButton.addEventListener("click", () => {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminBusinessId");
+        localStorage.removeItem("adminEmail");
+        localStorage.removeItem("adminLoginAt");
+        logEvent("info", "auth", "logout");
+        window.location.assign("/ui");
+      });
+
+      window.addEventListener("error", (event) => {
+        logEvent("error", "system", "window_error", event.message || "Unexpected error");
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        logEvent("error", "system", "unhandled_rejection", event.reason?.message || "Unhandled promise rejection");
+      });
+    </script>
+  </body>
+</html>
