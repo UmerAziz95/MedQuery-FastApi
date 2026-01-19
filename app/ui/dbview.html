@@ -35,6 +35,10 @@
         padding: 24px 32px;
         border-bottom: 1px solid var(--border);
         background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
       }
 
       header h1 {
@@ -46,6 +50,19 @@
       header p {
         margin: 6px 0 0;
         color: var(--muted);
+      }
+
+      .header-links {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .header-links a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 600;
       }
 
       main {
@@ -183,8 +200,15 @@
   </head>
   <body>
     <header>
-      <h1>Database Tables Overview</h1>
-      <p>Explore tables created by migrations, counts, and core metadata.</p>
+      <div>
+        <h1>Database Tables Overview</h1>
+        <p>Explore tables created by migrations, counts, and core metadata.</p>
+      </div>
+      <div class="header-links">
+        <a href="/chat">Chat workspace</a>
+        <a href="/assignments">Assignments</a>
+        <a href="/profile">Profile</a>
+      </div>
     </header>
     <main>
       <aside class="panel sidebar">

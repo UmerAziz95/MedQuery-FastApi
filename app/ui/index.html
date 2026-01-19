@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MedQuery RAG Tester</title>
+    <title>MedQuery Admin Login</title>
     <style>
       :root {
         color-scheme: light dark;
@@ -20,11 +20,18 @@
         --error: #ef4444;
       }
 
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
         font-family: "Inter", "Segoe UI", system-ui, sans-serif;
         background: var(--bg);
         color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
       }
 
       header {
@@ -44,63 +51,21 @@
         color: var(--muted);
       }
 
-      .header-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-      }
-
-      .header-badges {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-      }
-
-      .badge {
-        padding: 6px 12px;
-        border-radius: 999px;
-        background: rgba(56, 189, 248, 0.18);
-        color: var(--accent);
-        font-size: 12px;
-        font-weight: 600;
-        border: 1px solid rgba(56, 189, 248, 0.35);
-      }
-
-      .badge-link {
-        text-decoration: none;
-        transition: transform 0.15s ease, background 0.15s ease;
-      }
-
-      .badge-link:hover {
-        background: rgba(14, 165, 233, 0.25);
-        transform: translateY(-1px);
-      }
-
       main {
+        flex: 1;
         display: grid;
-        grid-template-columns: 380px 1fr;
-        gap: 24px;
-        padding: 24px 32px 40px;
+        grid-template-columns: minmax(280px, 400px) minmax(280px, 1fr);
+        gap: 32px;
+        padding: 32px;
+        align-items: start;
       }
 
       .panel {
         background: var(--panel);
         border: 1px solid var(--border);
-        border-radius: 14px;
-        padding: 20px;
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
-      }
-
-      .panel.glass {
-        background: linear-gradient(150deg, rgba(17, 24, 39, 0.88), rgba(11, 18, 32, 0.95));
-        border: 1px solid rgba(56, 189, 248, 0.15);
-      }
-
-      .stack {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.45);
       }
 
       label {
@@ -112,36 +77,21 @@
         margin-bottom: 6px;
       }
 
-      input,
-      textarea,
-      select {
+      input {
         width: 100%;
         box-sizing: border-box;
         border-radius: 10px;
         border: 1px solid var(--border);
-        padding: 10px 12px;
+        padding: 12px;
         background: var(--panel-2);
         color: var(--text);
         font-size: 14px;
-        margin-bottom: 14px;
+        margin-bottom: 16px;
       }
 
-      input:focus,
-      textarea:focus,
-      select:focus {
+      input:focus {
         outline: 2px solid rgba(56, 189, 248, 0.35);
         border-color: rgba(56, 189, 248, 0.6);
-      }
-
-      textarea {
-        min-height: 90px;
-        resize: vertical;
-      }
-
-      .row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
       }
 
       button {
@@ -161,937 +111,204 @@
         transform: translateY(-1px);
       }
 
-      button:disabled {
-        cursor: wait;
-        opacity: 0.6;
-        transform: none;
-      }
-
-      .chat-window {
-        display: flex;
-        flex-direction: column;
-        height: calc(100vh - 160px);
-        gap: 16px;
-      }
-
-      .chat-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-      }
-
-      .chat-header h2 {
-        margin: 0;
-        font-size: 18px;
-      }
-
-      .chat-header p {
-        margin: 4px 0 0;
-        color: var(--muted);
-        font-size: 12px;
-      }
-
-      .chat-actions {
-        display: flex;
-        gap: 10px;
-      }
-
-      .chat-actions button {
-        width: auto;
-      }
-
-      .request-panel {
-        background: var(--panel-3);
+      button.secondary {
+        background: transparent;
         border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 16px;
-      }
-
-      .request-panel h3 {
-        margin: 0 0 10px;
-        font-size: 14px;
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }
-
-      .request-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 12px;
-      }
-
-      .request-card {
-        background: var(--panel-2);
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        padding: 12px;
-      }
-
-      .request-card h4 {
-        margin: 0 0 6px;
-        font-size: 12px;
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }
-
-      .request-card pre {
-        margin: 0;
-        font-size: 12px;
-        white-space: pre-wrap;
         color: var(--text);
-        font-family: "JetBrains Mono", "Fira Code", monospace;
-      }
-
-      .messages {
-        flex: 1;
-        overflow-y: auto;
-        padding: 6px 8px 6px 0;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-      }
-
-      .message {
-        padding: 14px 16px;
-        border-radius: 14px;
-        background: var(--panel-2);
-        border: 1px solid var(--border);
-        max-width: 90%;
-      }
-
-      .message.user {
-        align-self: flex-end;
-        background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(15, 23, 42, 0.9));
-        border-left: 4px solid var(--accent);
-      }
-
-      .message.assistant {
-        border-left: 4px solid #a78bfa;
-        background: linear-gradient(135deg, rgba(167, 139, 250, 0.2), rgba(17, 24, 39, 0.92));
-      }
-
-      .message.system {
-        border-left: 4px solid var(--error);
-        background: rgba(239, 68, 68, 0.12);
-      }
-
-      .message .meta {
-        font-size: 12px;
-        color: var(--muted);
-        margin-bottom: 6px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .message pre {
-        white-space: pre-wrap;
-        margin: 0;
-        font-family: "JetBrains Mono", "Fira Code", monospace;
-      }
-
-      .composer {
-        margin-top: 8px;
-        display: flex;
-        gap: 12px;
-      }
-
-      .composer textarea {
-        flex: 1;
-        min-height: 60px;
-        margin-bottom: 0;
       }
 
       .status {
-        margin-top: 10px;
+        font-size: 13px;
         color: var(--muted);
-        font-size: 12px;
-      }
-
-      .status.error {
-        color: var(--error);
+        margin-top: 12px;
       }
 
       .status.success {
         color: var(--success);
       }
 
-      .hint {
-        font-size: 12px;
-        color: var(--muted);
-        margin-top: -8px;
-        margin-bottom: 12px;
-      }
-
-      .panel h2 {
-        margin: 0 0 12px;
-        font-size: 16px;
-        font-weight: 600;
-      }
-
-      .panel p {
-        margin-top: 0;
-        color: var(--muted);
-        font-size: 13px;
-      }
-
-      .inline-actions {
-        display: flex;
-        gap: 10px;
-      }
-
-      .inline-actions button {
-        width: auto;
-        flex: 1;
-      }
-
-      .toast-container {
-        position: fixed;
-        right: 24px;
-        bottom: 24px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        z-index: 999;
-      }
-
-      .toast {
-        min-width: 220px;
-        max-width: 360px;
-        padding: 12px 14px;
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        background: var(--panel-2);
-        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45);
-        display: grid;
-        gap: 6px;
-        animation: toast-in 0.2s ease-out;
-      }
-
-      .toast-title {
-        font-size: 12px;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      }
-
-      .toast-message {
-        font-size: 13px;
-        color: var(--text);
-      }
-
-      .toast.success {
-        border-color: rgba(34, 197, 94, 0.6);
-      }
-
-      .toast.success .toast-title {
-        color: var(--success);
-      }
-
-      .toast.error {
-        border-color: rgba(239, 68, 68, 0.6);
-      }
-
-      .toast.error .toast-title {
+      .status.error {
         color: var(--error);
       }
 
-      .toast.warning .toast-title {
-        color: #f59e0b;
+      .quick-links {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
       }
 
-      @keyframes toast-in {
-        from {
-          transform: translateY(8px);
-          opacity: 0;
-        }
-        to {
-          transform: translateY(0);
-          opacity: 1;
-        }
+      .link-card {
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+      }
+
+      .link-card h3 {
+        margin: 0 0 6px;
+        font-size: 14px;
+      }
+
+      .link-card p {
+        margin: 0 0 12px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .link-card a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 600;
       }
 
       @media (max-width: 960px) {
         main {
           grid-template-columns: 1fr;
         }
-
-        .chat-window {
-          height: auto;
-          min-height: 520px;
-        }
       }
     </style>
   </head>
   <body>
     <header>
-      <div class="header-row">
-        <div>
-          <h1>MedQuery RAG Test Console</h1>
-          <p>ChatGPT-style UI for exercising the RAG and chat endpoints.</p>
-        </div>
-        <div class="header-badges">
-          <span class="badge">Environment: Local</span>
-          <span class="badge">Agent Mode</span>
-          <a class="badge badge-link" href="/assignments">Assignments</a>
-          <a class="badge badge-link" href="/dbview">DB View</a>
-        </div>
-      </div>
+      <h1>Admin Login</h1>
+      <p>Authenticate as an admin before accessing the chat workspace.</p>
     </header>
 
     <main>
-      <div class="stack">
-        <section class="panel">
-          <h2>Admin Authentication</h2>
-          <p>
-            Log in as the seeded super admin (default / admin@example.com / password), then create
-            businesses, admins, and workspaces. Seeded defaults include business_client_id
-            <strong>default</strong> and workspace_id <strong>main</strong>.
-          </p>
+      <section class="panel">
+        <h2>Sign in</h2>
+        <p class="status" id="login-hint">
+          Use the seeded super admin (admin@example.com / password) or your assigned credentials.
+        </p>
 
-          <label for="authBusiness">Business Client ID</label>
-          <input id="authBusiness" placeholder="default" value="default" />
+        <label for="business-id">Business Client ID</label>
+        <input id="business-id" placeholder="default" value="default" />
 
-          <label for="authEmail">Admin Email</label>
-          <input id="authEmail" placeholder="admin@example.com" value="admin@example.com" />
+        <label for="email">Admin Email</label>
+        <input id="email" placeholder="admin@example.com" value="admin@example.com" />
 
-          <label for="authPassword">Password</label>
-          <input id="authPassword" type="password" placeholder="password" value="password" />
+        <label for="password">Password</label>
+        <input id="password" type="password" placeholder="password" value="password" />
 
-          <div class="inline-actions">
-            <button id="loginAdmin">Login</button>
-            <button id="copyToken" type="button">Copy Token</button>
+        <button id="login-button">Login and Continue</button>
+        <button id="continue-button" class="secondary" type="button">Continue to Chat</button>
+        <div class="status" id="login-status">Awaiting login.</div>
+      </section>
+
+      <section class="panel">
+        <h2>Workspace Access</h2>
+        <div class="quick-links">
+          <div class="link-card">
+            <h3>Chat Workspace</h3>
+            <p>Start a new chat, browse your chat history, and manage prompts.</p>
+            <a href="/chat">Open chat interface →</a>
           </div>
-
-          <label for="token">Bearer Token</label>
-          <input id="token" placeholder="eyJhbGciOi..." />
-          <div class="status" id="adminStatus">Awaiting login.</div>
-        </section>
-
-        <section class="panel">
-          <h2>Business & Admin Setup</h2>
-          <p>Create business clients, then assign admins or super admins.</p>
-
-          <label for="newBusinessId">New Business Client ID</label>
-          <input id="newBusinessId" placeholder="acme-health" />
-
-          <label for="newBusinessName">Business Name</label>
-          <input id="newBusinessName" placeholder="Acme Health" />
-
-          <button id="createBusiness">Create Business</button>
-
-          <label for="createAdminBusiness">Admin Business Client ID</label>
-          <input id="createAdminBusiness" placeholder="acme-health" />
-
-          <label for="createAdminEmail">Admin Email</label>
-          <input id="createAdminEmail" placeholder="admin@acme.com" />
-
-          <label for="createAdminPassword">Admin Password</label>
-          <input id="createAdminPassword" type="password" placeholder="••••••••" />
-
-          <label for="createAdminRole">Admin Role</label>
-          <select id="createAdminRole">
-            <option value="admin">Admin</option>
-            <option value="super_admin">Super Admin</option>
-          </select>
-
-          <button id="createAdmin">Create Admin</button>
-          <div class="status" id="businessStatus">Ready for admin setup.</div>
-        </section>
-
-        <section class="panel">
-          <h2>Workspace Setup</h2>
-          <p>Create workspaces tied to a business client.</p>
-
-          <label for="workspaceBusiness">Business Client ID</label>
-          <input id="workspaceBusiness" placeholder="acme-health" />
-
-          <label for="newWorkspaceId">Workspace ID</label>
-          <input id="newWorkspaceId" placeholder="main" />
-
-          <label for="newWorkspaceName">Workspace Name</label>
-          <input id="newWorkspaceName" placeholder="Main Workspace" />
-
-          <button id="createWorkspace">Create Workspace</button>
-          <div class="status" id="workspaceStatus">Ready for workspace creation.</div>
-        </section>
-
-        <section class="panel">
-          <h2>RAG Document Upload</h2>
-          <p>Upload PDF/TXT files to create or extend a workspace RAG index.</p>
-
-          <label for="ragBusiness">Business Client ID</label>
-          <input id="ragBusiness" placeholder="acme-health" />
-
-          <label for="ragWorkspace">Workspace ID</label>
-          <input id="ragWorkspace" placeholder="main" />
-
-          <label for="ragFile">Document File (PDF/TXT)</label>
-          <input id="ragFile" type="file" accept=".pdf,.txt" />
-
-          <div class="row">
-            <div>
-              <label for="chunkWords">Chunk Words</label>
-              <input id="chunkWords" type="number" min="100" placeholder="400" />
-            </div>
-            <div>
-              <label for="overlapWords">Overlap Words</label>
-              <input id="overlapWords" type="number" min="0" placeholder="40" />
-            </div>
+          <div class="link-card">
+            <h3>Assignments</h3>
+            <p>Manage business assignments, admin roles, and workspace access.</p>
+            <a href="/assignments">Open assignments →</a>
           </div>
-
-          <button id="uploadRag">Upload Document</button>
-          <div class="status" id="ragStatus">Awaiting document upload.</div>
-        </section>
-
-        <section class="panel">
-          <h2>Chat & Retrieval</h2>
-          <p class="hint">
-            Chat requires a business + workspace pair that already exists. Use the workspace setup
-            panel (or the seeded default/main workspace) before sending a prompt.
-          </p>
-          <label for="mode">Mode</label>
-          <select id="mode">
-            <option value="chat">Chat (/api/chat/generate)</option>
-            <option value="retrieve">Retrieve (/api/rag/retrieve)</option>
-          </select>
-
-          <label for="business">Business Client ID</label>
-          <input id="business" placeholder="default" value="default" />
-
-          <label for="workspace">Workspace ID</label>
-          <input id="workspace" placeholder="main" value="main" />
-
-          <label for="user">User ID</label>
-          <input id="user" placeholder="u123" value="u123" />
-
-          <div class="row">
-            <div>
-              <label for="topK">Top K</label>
-              <input id="topK" type="number" min="1" value="5" />
-            </div>
-            <div>
-              <label for="temperature">Temperature</label>
-              <input id="temperature" type="number" step="0.1" min="0" max="2" value="0.2" />
-            </div>
+          <div class="link-card">
+            <h3>Database Overview</h3>
+            <p>Review tables and database metadata in a dedicated console.</p>
+            <a href="/database-overview">Open database overview →</a>
           </div>
-
-          <label for="maxTokens">Max Tokens</label>
-          <input id="maxTokens" type="number" min="1" value="600" />
-
-          <label for="prompt">Prompt Engineering</label>
-          <textarea id="prompt">You are a medical assistant. Provide concise answers.</textarea>
-
-          <label for="chatOverride">Chat Config Override (JSON)</label>
-          <textarea id="chatOverride" placeholder='{"model":"gpt-4.1-mini"}'></textarea>
-          <div class="hint">Optional. If provided, merged into the chat_config_override object.</div>
-          <div class="status" id="status">Ready.</div>
-        </section>
-      </div>
-
-      <section class="panel chat-window glass">
-        <div class="chat-header">
-          <div>
-            <h2>AI Agent Session</h2>
-            <p id="sessionStatus">Ready to generate insights.</p>
-          </div>
-          <div class="chat-actions">
-            <button id="clear" type="button">Clear Conversation</button>
-            <button id="send" type="button">Send</button>
-          </div>
-        </div>
-
-        <div class="request-panel">
-          <h3>Request Inspector</h3>
-          <div class="request-grid">
-            <div class="request-card">
-              <h4>Endpoint</h4>
-              <pre id="requestEndpoint">/api/chat/generate</pre>
-            </div>
-            <div class="request-card">
-              <h4>Payload Preview</h4>
-              <pre id="requestPayload">{}</pre>
-            </div>
-            <div class="request-card">
-              <h4>Response Snapshot</h4>
-              <pre id="responsePayload">Awaiting response.</pre>
-            </div>
-          </div>
-        </div>
-
-        <div class="messages" id="messages"></div>
-        <div class="composer">
-          <textarea id="input" placeholder="Type a question to test the API..."></textarea>
         </div>
       </section>
     </main>
 
-    <div class="toast-container" id="toastContainer"></div>
-
     <script>
-      const apiBase = "/api";
-      const adminBase = `${apiBase}/admin`;
-      const messagesEl = document.getElementById("messages");
-      const statusEl = document.getElementById("status");
-      const sessionStatusEl = document.getElementById("sessionStatus");
-      const inputEl = document.getElementById("input");
-      const modeEl = document.getElementById("mode");
-      const tokenEl = document.getElementById("token");
-      const authBusinessEl = document.getElementById("authBusiness");
-      const authEmailEl = document.getElementById("authEmail");
-      const authPasswordEl = document.getElementById("authPassword");
-      const adminStatusEl = document.getElementById("adminStatus");
-      const businessStatusEl = document.getElementById("businessStatus");
-      const workspaceStatusEl = document.getElementById("workspaceStatus");
-      const ragStatusEl = document.getElementById("ragStatus");
-      const newBusinessIdEl = document.getElementById("newBusinessId");
-      const newBusinessNameEl = document.getElementById("newBusinessName");
-      const createAdminBusinessEl = document.getElementById("createAdminBusiness");
-      const createAdminEmailEl = document.getElementById("createAdminEmail");
-      const createAdminPasswordEl = document.getElementById("createAdminPassword");
-      const createAdminRoleEl = document.getElementById("createAdminRole");
-      const workspaceBusinessEl = document.getElementById("workspaceBusiness");
-      const newWorkspaceIdEl = document.getElementById("newWorkspaceId");
-      const newWorkspaceNameEl = document.getElementById("newWorkspaceName");
-      const ragBusinessEl = document.getElementById("ragBusiness");
-      const ragWorkspaceEl = document.getElementById("ragWorkspace");
-      const ragFileEl = document.getElementById("ragFile");
-      const chunkWordsEl = document.getElementById("chunkWords");
-      const overlapWordsEl = document.getElementById("overlapWords");
-      const businessEl = document.getElementById("business");
-      const workspaceEl = document.getElementById("workspace");
-      const userEl = document.getElementById("user");
-      const topKEl = document.getElementById("topK");
-      const temperatureEl = document.getElementById("temperature");
-      const maxTokensEl = document.getElementById("maxTokens");
-      const promptEl = document.getElementById("prompt");
-      const chatOverrideEl = document.getElementById("chatOverride");
-      const toastContainerEl = document.getElementById("toastContainer");
-      const requestEndpointEl = document.getElementById("requestEndpoint");
-      const requestPayloadEl = document.getElementById("requestPayload");
-      const responsePayloadEl = document.getElementById("responsePayload");
-      const sendButtonEl = document.getElementById("send");
-      const clearButtonEl = document.getElementById("clear");
+      const loginButton = document.getElementById("login-button");
+      const continueButton = document.getElementById("continue-button");
+      const statusEl = document.getElementById("login-status");
 
-      const toastTimeoutMs = 3600;
+      const businessInput = document.getElementById("business-id");
+      const emailInput = document.getElementById("email");
+      const passwordInput = document.getElementById("password");
 
-      const createToast = (type, title, message) => {
-        const toast = document.createElement("div");
-        toast.className = `toast ${type}`;
-        toast.innerHTML = `
-          <div class="toast-title">${title}</div>
-          <div class="toast-message">${message}</div>
-        `;
-        toastContainerEl.appendChild(toast);
-        setTimeout(() => {
-          toast.remove();
-        }, toastTimeoutMs);
-      };
-
-      const showToast = (type, message) => {
-        const titleMap = {
-          success: "Success",
-          error: "Error",
-          warning: "Notice",
-        };
-        createToast(type, titleMap[type] || "Notice", message);
-      };
-
-      const addMessage = (role, content, label) => {
-        const wrapper = document.createElement("div");
-        wrapper.className = `message ${role}`;
-        wrapper.innerHTML = `
-          <div class="meta">${label || role.toUpperCase()}</div>
-          <pre>${content}</pre>
-        `;
-        messagesEl.appendChild(wrapper);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-      };
-
-      const setStatus = (text, status = "idle") => {
-        statusEl.textContent = text;
-        statusEl.classList.toggle("error", status === "error");
-        statusEl.classList.toggle("success", status === "success");
-      };
-
-      const setSessionStatus = (text, status = "idle") => {
-        sessionStatusEl.textContent = text;
-        sessionStatusEl.classList.toggle("error", status === "error");
-        sessionStatusEl.classList.toggle("success", status === "success");
-      };
-
-      const setPanelStatus = (element, text, status = "idle") => {
-        element.textContent = text;
-        element.classList.toggle("error", status === "error");
-        element.classList.toggle("success", status === "success");
-      };
-
-      const setRequestDetails = (endpoint, payload, responsePreview) => {
-        requestEndpointEl.textContent = endpoint || "-";
-        requestPayloadEl.textContent = payload
-          ? JSON.stringify(payload, null, 2)
-          : "Awaiting request.";
-        if (responsePreview) {
-          responsePayloadEl.textContent = JSON.stringify(responsePreview, null, 2);
+      const setStatus = (message, type = "") => {
+        statusEl.textContent = message;
+        statusEl.classList.remove("success", "error");
+        if (type) {
+          statusEl.classList.add(type);
         }
       };
 
-      const buildAuthHeaders = () => {
-        const headers = {};
-        if (tokenEl.value.trim()) {
-          headers.Authorization = `Bearer ${tokenEl.value.trim()}`;
-        }
-        return headers;
+      const setLoading = (isLoading) => {
+        loginButton.disabled = isLoading;
+        loginButton.textContent = isLoading ? "Signing in..." : "Login and Continue";
       };
 
-      const buildChatOverride = () => {
-        const overrideText = chatOverrideEl.value.trim();
-        let override = {};
-        if (overrideText) {
-          try {
-            override = JSON.parse(overrideText);
-          } catch (error) {
-            showToast("error", "Chat override JSON is invalid.");
-            throw new Error("Chat config override must be valid JSON.");
-          }
-        }
-        return {
-          temperature: parseFloat(temperatureEl.value || "0.2"),
-          max_tokens: parseInt(maxTokensEl.value || "600", 10),
-          ...override,
-        };
+      const saveAdminSession = (payload) => {
+        localStorage.setItem("adminToken", payload.access_token);
+        localStorage.setItem("adminBusinessId", payload.business_client_id || businessInput.value.trim());
+        localStorage.setItem("adminEmail", emailInput.value.trim());
+        localStorage.setItem("adminLoginAt", new Date().toISOString());
       };
 
-      const syncBusinessClientId = (businessClientId) => {
-        if (!businessClientId) {
+      const hasToken = () => Boolean(localStorage.getItem("adminToken"));
+
+      const refreshContinueButton = () => {
+        continueButton.disabled = !hasToken();
+      };
+
+      loginButton.addEventListener("click", async () => {
+        const businessClientId = businessInput.value.trim();
+        const email = emailInput.value.trim();
+        const password = passwordInput.value.trim();
+
+        if (!businessClientId || !email || !password) {
+          setStatus("Please provide business ID, email, and password.", "error");
           return;
         }
-        businessEl.value = businessClientId;
-        workspaceBusinessEl.value = businessClientId;
-        ragBusinessEl.value = businessClientId;
-        createAdminBusinessEl.value = businessClientId;
-        updateRequestPreview();
-      };
 
-      const parseJsonSafely = (text) => {
-        if (!text) {
-          return null;
-        }
-        try {
-          return JSON.parse(text);
-        } catch (error) {
-          return null;
-        }
-      };
+        setLoading(true);
+        setStatus("Signing in...");
 
-      const sendRequestWithFeedback = async (endpoint, payload, options = {}) => {
-        const { onStatus, onSuccess, onError, method = "POST", headers, body } = options;
-        onStatus?.("Sending request...");
         try {
-          const response = await fetch(endpoint, {
-            method,
-            headers,
-            body,
+          const response = await fetch("/api/admin/auth/login", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              business_client_id: businessClientId,
+              email,
+              password,
+            }),
           });
-          const rawText = await response.text();
-          const data = parseJsonSafely(rawText) ?? { message: rawText || "No response body." };
+
           if (!response.ok) {
-            throw new Error(data.detail || data.message || "Request failed");
+            const errorBody = await response.json().catch(() => ({}));
+            throw new Error(errorBody.detail || "Login failed.");
           }
-          onSuccess?.(data);
-          return data;
+
+          const payload = await response.json();
+          saveAdminSession({
+            ...payload,
+            business_client_id: businessClientId,
+          });
+          setStatus("Login successful. Redirecting to chat...", "success");
+          window.location.assign("/chat");
         } catch (error) {
-          onError?.(error);
-          throw error;
-        }
-      };
-
-      const sendJsonRequest = async (endpoint, payload) => {
-        return sendRequestWithFeedback(endpoint, payload, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...buildAuthHeaders(),
-          },
-          body: JSON.stringify(payload),
-        });
-      };
-
-      const withButtonLoading = (button, action) => {
-        return async () => {
-          const originalText = button.textContent;
-          button.textContent = "Working...";
-          button.disabled = true;
-          try {
-            await action();
-          } finally {
-            button.textContent = originalText;
-            button.disabled = false;
-          }
-        };
-      };
-
-      const sendRequest = async () => {
-        const query = inputEl.value.trim();
-        if (!query) {
-          showToast("warning", "Type a prompt before sending.");
-          return;
-        }
-
-        addMessage("user", query, "You");
-        inputEl.value = "";
-        setStatus("Sending request...");
-        setSessionStatus("Processing...", "idle");
-
-        const mode = modeEl.value;
-        const endpoint = mode === "chat" ? `${apiBase}/chat/generate` : `${apiBase}/rag/retrieve`;
-
-        let payload = {
-          business_client_id: businessEl.value.trim(),
-          workspace_id: workspaceEl.value.trim(),
-          user_id: userEl.value.trim(),
-          query,
-        };
-
-        if (mode === "chat") {
-          try {
-            payload.prompt_engineering = promptEl.value.trim();
-            payload.chat_config_override = buildChatOverride();
-          } catch (error) {
-            setStatus(error.message, "error");
-            setSessionStatus("Validation error.", "error");
-            return;
-          }
-        } else {
-          payload.top_k = parseInt(topKEl.value || "5", 10);
-        }
-
-        try {
-          setRequestDetails(endpoint, payload);
-          const data = await sendJsonRequest(endpoint, payload);
-          const displayContent = JSON.stringify(data, null, 2);
-          addMessage("assistant", displayContent, "Agent");
-          responsePayloadEl.textContent = displayContent;
-          setStatus("Success", "success");
-          setSessionStatus("Response received.", "success");
-          showToast("success", "Request completed.");
-        } catch (error) {
-          addMessage("system", `Error: ${error.message}`, "System");
-          responsePayloadEl.textContent = `Error: ${error.message}`;
-          setStatus("Request failed", "error");
-          setSessionStatus("Request failed.", "error");
-          showToast("error", error.message);
-        }
-      };
-
-      const updateRequestPreview = () => {
-        const mode = modeEl.value;
-        const endpoint = mode === "chat" ? `${apiBase}/chat/generate` : `${apiBase}/rag/retrieve`;
-        const payload = {
-          business_client_id: businessEl.value.trim(),
-          workspace_id: workspaceEl.value.trim(),
-          user_id: userEl.value.trim(),
-        };
-        if (mode === "chat") {
-          payload.prompt_engineering = promptEl.value.trim();
-        } else {
-          payload.top_k = parseInt(topKEl.value || "5", 10);
-        }
-        setRequestDetails(endpoint, payload);
-      };
-
-      document.getElementById("loginAdmin").addEventListener(
-        "click",
-        withButtonLoading(document.getElementById("loginAdmin"), async () => {
-          setPanelStatus(adminStatusEl, "Logging in...");
-          try {
-            const data = await sendJsonRequest(`${adminBase}/auth/login`, {
-              business_client_id: authBusinessEl.value.trim(),
-              email: authEmailEl.value.trim(),
-              password: authPasswordEl.value.trim(),
-            });
-            tokenEl.value = data.access_token;
-            syncBusinessClientId(authBusinessEl.value.trim());
-            setPanelStatus(adminStatusEl, "Logged in. Token stored.", "success");
-            showToast("success", "Admin login successful.");
-          } catch (error) {
-            setPanelStatus(adminStatusEl, `Login failed: ${error.message}`, "error");
-            showToast("error", `Login failed: ${error.message}`);
-          }
-        })
-      );
-
-      document.getElementById("copyToken").addEventListener(
-        "click",
-        withButtonLoading(document.getElementById("copyToken"), async () => {
-          if (!tokenEl.value.trim()) {
-            setPanelStatus(adminStatusEl, "No token to copy.", "error");
-            showToast("warning", "No token available to copy.");
-            return;
-          }
-          try {
-            await navigator.clipboard.writeText(tokenEl.value.trim());
-            setPanelStatus(adminStatusEl, "Token copied to clipboard.", "success");
-            showToast("success", "Token copied.");
-          } catch (error) {
-            setPanelStatus(adminStatusEl, "Copy failed. Manual copy needed.", "error");
-            showToast("error", "Copy failed. Manual copy needed.");
-          }
-        })
-      );
-
-      document.getElementById("createBusiness").addEventListener(
-        "click",
-        withButtonLoading(document.getElementById("createBusiness"), async () => {
-          setPanelStatus(businessStatusEl, "Creating business...");
-          try {
-            await sendJsonRequest(`${adminBase}/businesses`, {
-              business_client_id: newBusinessIdEl.value.trim(),
-              name: newBusinessNameEl.value.trim(),
-            });
-            setPanelStatus(businessStatusEl, "Business created.", "success");
-            showToast("success", "Business created.");
-          } catch (error) {
-            setPanelStatus(businessStatusEl, `Business failed: ${error.message}`, "error");
-            showToast("error", `Business failed: ${error.message}`);
-          }
-        })
-      );
-
-      document.getElementById("createAdmin").addEventListener(
-        "click",
-        withButtonLoading(document.getElementById("createAdmin"), async () => {
-          setPanelStatus(businessStatusEl, "Creating admin...");
-          try {
-            await sendJsonRequest(`${adminBase}/auth/create-admin`, {
-              business_client_id: createAdminBusinessEl.value.trim(),
-              email: createAdminEmailEl.value.trim(),
-              password: createAdminPasswordEl.value.trim(),
-              role: createAdminRoleEl.value,
-            });
-            setPanelStatus(businessStatusEl, "Admin created.", "success");
-            showToast("success", "Admin created.");
-          } catch (error) {
-            setPanelStatus(businessStatusEl, `Admin failed: ${error.message}`, "error");
-            showToast("error", `Admin failed: ${error.message}`);
-          }
-        })
-      );
-
-      document.getElementById("createWorkspace").addEventListener(
-        "click",
-        withButtonLoading(document.getElementById("createWorkspace"), async () => {
-          setPanelStatus(workspaceStatusEl, "Creating workspace...");
-          try {
-            const businessClientId = workspaceBusinessEl.value.trim();
-            await sendJsonRequest(`${adminBase}/businesses/${businessClientId}/workspaces`, {
-              workspace_id: newWorkspaceIdEl.value.trim(),
-              name: newWorkspaceNameEl.value.trim(),
-            });
-            setPanelStatus(workspaceStatusEl, "Workspace created.", "success");
-            showToast("success", "Workspace created.");
-          } catch (error) {
-            setPanelStatus(workspaceStatusEl, `Workspace failed: ${error.message}`, "error");
-            showToast("error", `Workspace failed: ${error.message}`);
-          }
-        })
-      );
-
-      document.getElementById("uploadRag").addEventListener(
-        "click",
-        withButtonLoading(document.getElementById("uploadRag"), async () => {
-          setPanelStatus(ragStatusEl, "Uploading document...");
-          const file = ragFileEl.files[0];
-          if (!file) {
-            setPanelStatus(ragStatusEl, "Please select a PDF or TXT file.", "error");
-            showToast("warning", "Please select a PDF or TXT file.");
-            return;
-          }
-          const businessClientId = ragBusinessEl.value.trim();
-          const workspaceId = ragWorkspaceEl.value.trim();
-          const formData = new FormData();
-          formData.append("file", file);
-          if (chunkWordsEl.value) {
-            formData.append("chunk_words", chunkWordsEl.value);
-          }
-          if (overlapWordsEl.value) {
-            formData.append("overlap_words", overlapWordsEl.value);
-          }
-
-          try {
-            const data = await sendRequestWithFeedback(
-              `${adminBase}/businesses/${businessClientId}/workspaces/${workspaceId}/documents/upload`,
-              null,
-              {
-                method: "POST",
-                headers: {
-                  ...buildAuthHeaders(),
-                },
-                body: formData,
-              }
-            );
-            setPanelStatus(ragStatusEl, `Uploaded: ${data.document_id}`, "success");
-            showToast("success", `Uploaded document ${data.document_id}.`);
-          } catch (error) {
-            setPanelStatus(ragStatusEl, `Upload failed: ${error.message}`, "error");
-            showToast("error", `Upload failed: ${error.message}`);
-          }
-        })
-      );
-
-      sendButtonEl.addEventListener("click", withButtonLoading(sendButtonEl, sendRequest));
-      clearButtonEl.addEventListener("click", () => {
-        messagesEl.innerHTML = "";
-        responsePayloadEl.textContent = "Awaiting response.";
-        setStatus("Conversation cleared.");
-        setSessionStatus("Ready to generate insights.");
-        showToast("success", "Conversation cleared.");
-      });
-
-      [
-        authBusinessEl,
-        authEmailEl,
-        authPasswordEl,
-        newBusinessIdEl,
-        newBusinessNameEl,
-        createAdminBusinessEl,
-        createAdminEmailEl,
-        createAdminPasswordEl,
-        workspaceBusinessEl,
-        newWorkspaceIdEl,
-        newWorkspaceNameEl,
-        ragBusinessEl,
-        ragWorkspaceEl,
-        chunkWordsEl,
-        overlapWordsEl,
-        businessEl,
-        workspaceEl,
-        userEl,
-        topKEl,
-        temperatureEl,
-        maxTokensEl,
-        promptEl,
-      ].forEach((input) => input.addEventListener("input", updateRequestPreview));
-      modeEl.addEventListener("change", updateRequestPreview);
-
-      updateRequestPreview();
-
-      inputEl.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-          sendRequest();
+          setStatus(`Login failed: ${error.message}`, "error");
+        } finally {
+          setLoading(false);
+          refreshContinueButton();
         }
       });
 
-      window.addEventListener("error", (event) => {
-        showToast("error", event.message || "Unexpected error.");
+      continueButton.addEventListener("click", () => {
+        if (hasToken()) {
+          window.location.assign("/chat");
+        }
       });
 
-      window.addEventListener("unhandledrejection", (event) => {
-        showToast("error", event.reason?.message || "Unhandled promise rejection.");
-      });
+      refreshContinueButton();
+      if (hasToken()) {
+        setStatus("Existing admin session found.", "success");
+      }
     </script>
   </body>
 </html>
