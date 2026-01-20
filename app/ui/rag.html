@@ -402,18 +402,37 @@
       };
 
       const apiFetch = async (path, options = {}) => {
-        const response = await fetch(path, {
-          ...options,
-          headers: {
-            ...(options.headers || {}),
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (!response.ok) {
-          const errorBody = await response.json().catch(() => ({}));
-          throw new Error(errorBody.detail || "Request failed");
+        // Create an AbortController for timeout handling
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), options.timeout || 300000); // 5 minutes default
+        
+        try {
+          const response = await fetch(path, {
+            ...options,
+            signal: controller.signal,
+            headers: {
+              ...(options.headers || {}),
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            const errorBody = await response.json().catch(() => ({}));
+            const errorMessage = errorBody.detail || errorBody.message || `HTTP ${response.status}: ${response.statusText}`;
+            throw new Error(errorMessage);
+          }
+          return response.json();
+        } catch (error) {
+          clearTimeout(timeoutId);
+          if (error.name === 'AbortError') {
+            throw new Error('Request timeout: The upload is taking too long. The document may be processing in the background. Please check the documents list.');
+          }
+          if (error.message) {
+            throw error;
+          }
+          throw new Error(`Network error: ${error.message || 'Failed to fetch'}`);
         }
-        return response.json();
       };
 
       const populateBusinesses = () => {
@@ -562,31 +581,109 @@
         if (overlapWordsInput.value) {
           formData.append("overlap_words", overlapWordsInput.value);
         }
-        setStatus(uploadStatus, "Uploading document...");
+        // Optimize timeout based on file size
+        const fileSizeKB = file.size / 1024;
+        let timeout, statusMessage;
+        if (fileSizeKB < 100) {
+          timeout = 60000; // 1 minute for very small files (< 100KB)
+          statusMessage = "Uploading document...";
+        } else if (fileSizeKB < 1000) {
+          timeout = 180000; // 3 minutes for small files (< 1MB)
+          statusMessage = "Uploading document... This may take a minute.";
+        } else {
+          timeout = 600000; // 10 minutes for large files
+          statusMessage = "Uploading document... This may take a few minutes for large PDFs.";
+        }
+        
+        setStatus(uploadStatus, "Uploading file...");
+        let documentId = null;
         try {
-          await apiFetch(
+          // Upload file - returns immediately with processing status
+          const result = await apiFetch(
             `/api/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents/upload`,
             {
               method: "POST",
               body: formData,
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+              timeout: 30000, // 30 seconds for file upload (processing happens in background)
             }
           );
-          setStatus(uploadStatus, "Document uploaded.", "success");
+          
+          documentId = result.document_id;
+          setStatus(uploadStatus, "File uploaded. Processing in background...", "success");
           ragFileInput.value = "";
-          await loadDocuments();
-          await loadOverview();
+          
           logEvent(
             "info",
             "rag",
-            "document_uploaded",
-            `business=${businessClientId} workspace=${workspaceId} file=${file.name}`
+            "document_upload_started",
+            `business=${businessClientId} workspace=${workspaceId} file=${file.name} document_id=${documentId}`
           );
+          
+          // Poll for status updates
+          const pollStatus = async () => {
+            const maxAttempts = 120; // 10 minutes max (5s intervals)
+            let attempts = 0;
+            
+            const checkStatus = async () => {
+              try {
+                const doc = await apiFetch(
+                  `/api/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents/${documentId}`,
+                  { timeout: 10000 }
+                );
+                
+                if (doc.status === "indexed") {
+                  setStatus(uploadStatus, "Document processed and indexed successfully!", "success");
+                  await loadDocuments();
+                  await loadOverview();
+                  logEvent(
+                    "info",
+                    "rag",
+                    "document_indexed",
+                    `document_id=${documentId} file=${file.name}`
+                  );
+                  return true;
+                } else if (doc.status === "failed") {
+                  setStatus(uploadStatus, `Processing failed: ${doc.meta_json || "Unknown error"}`, "error");
+                  await loadDocuments();
+                  logEvent("error", "rag", "document_processing_failed", `document_id=${documentId} error=${doc.meta_json}`);
+                  return true;
+                } else if (doc.status === "processing") {
+                  attempts++;
+                  if (attempts >= maxAttempts) {
+                    setStatus(uploadStatus, "Processing is taking longer than expected. Check documents list for status.", "error");
+                    await loadDocuments();
+                    return true;
+                  }
+                  // Continue polling
+                  setStatus(uploadStatus, `Processing... (${attempts * 5}s elapsed)`);
+                  setTimeout(checkStatus, 5000); // Check every 5 seconds
+                  return false;
+                }
+              } catch (error) {
+                attempts++;
+                if (attempts >= maxAttempts) {
+                  setStatus(uploadStatus, "Unable to check status. Please refresh documents list.", "error");
+                  await loadDocuments();
+                  return true;
+                }
+                setTimeout(checkStatus, 5000);
+                return false;
+              }
+            };
+            
+            // Start polling after 2 seconds
+            setTimeout(checkStatus, 2000);
+          };
+          
+          await pollStatus();
+          
         } catch (error) {
-          setStatus(uploadStatus, `Upload failed: ${error.message}`, "error");
-          logEvent("error", "rag", "document_upload_failed", error.message);
+          const errorMsg = error.message || "Unknown error occurred";
+          setStatus(uploadStatus, `Upload failed: ${errorMsg}`, "error");
+          logEvent("error", "rag", "document_upload_failed", `${errorMsg} | file=${file.name} size=${file.size}`);
+          console.error("Upload error details:", error);
+          // Still try to load documents in case upload partially succeeded
+          await loadDocuments();
         }
       };
 

@@ -178,6 +178,7 @@ docker compose up -d --build
 ⏹ Stop all services (keep data)
 docker compose down
 
+
 💥 Stop + delete volumes (DANGEROUS – deletes DB data)
 docker compose down -v
 
@@ -197,6 +198,8 @@ docker compose ps -a
 🔎 See only Docker-level containers
 docker ps
 docker ps -a
+
+
 
 🔹 Logs (THIS IS HOW YOU DEBUG)
 📜 View logs of a service
