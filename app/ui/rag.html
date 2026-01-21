@@ -278,6 +278,137 @@
         text-align: center;
       }
 
+      .status-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .status-badge.success {
+        background: rgba(34, 197, 94, 0.2);
+        color: var(--success);
+      }
+
+      .status-badge.error {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--error);
+      }
+
+      .status-badge.processing {
+        background: rgba(56, 189, 248, 0.2);
+        color: var(--accent);
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+      }
+
+      .view-chunks-btn {
+        background: var(--accent);
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+        font-weight: 500;
+      }
+
+      .view-chunks-btn:hover {
+        background: var(--accent-2);
+      }
+
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal.open {
+        display: flex;
+      }
+
+      .modal-content {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+        max-width: 800px;
+        max-height: 80vh;
+        width: 90%;
+        overflow-y: auto;
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      .modal-header h3 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .close-btn {
+        background: transparent;
+        border: none;
+        color: var(--muted);
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+      }
+
+      .close-btn:hover {
+        background: var(--panel-2);
+        color: var(--text);
+      }
+
+      .chunk-item {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+
+      .chunk-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .chunk-content {
+        color: var(--text);
+        font-size: 13px;
+        line-height: 1.6;
+        max-height: 150px;
+        overflow-y: auto;
+      }
+
       @media (max-width: 1024px) {
         main {
           grid-template-columns: 1fr;
@@ -350,6 +481,17 @@
         </div>
       </section>
     </main>
+
+    <!-- Chunks Viewer Modal -->
+    <div class="modal" id="chunks-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="chunks-modal-title">Document Chunks</h3>
+          <button class="close-btn" onclick="closeChunksModal()">&times;</button>
+        </div>
+        <div id="chunks-content"></div>
+      </div>
+    </div>
 
     <script>
       const token = localStorage.getItem("adminToken");
@@ -503,44 +645,95 @@
         }
       };
 
-      const loadDocuments = async () => {
+      let documentsRefreshInterval = null;
+
+      const loadDocuments = async (showStatus = true) => {
         const businessClientId = businessSelect.value;
         const workspaceId = workspaceSelect.value;
         if (!businessClientId || !workspaceId) {
           documentsTable.innerHTML = '<div class="empty-state">Select a business and workspace.</div>';
+          if (documentsRefreshInterval) {
+            clearInterval(documentsRefreshInterval);
+            documentsRefreshInterval = null;
+          }
           return;
         }
-        setStatus(workspaceStatus, `Loading RAG documents for ${workspaceId}...`);
+        if (showStatus) {
+          setStatus(workspaceStatus, `Loading RAG documents for ${workspaceId}...`);
+        }
         try {
           const documents = await apiFetch(
             `/api/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents`
           );
-          setStatus(workspaceStatus, "", "success");
+          if (showStatus) {
+            setStatus(workspaceStatus, "", "success");
+          }
           if (!documents.length) {
             documentsTable.innerHTML = '<div class="empty-state">No RAG documents found.</div>';
+            if (documentsRefreshInterval) {
+              clearInterval(documentsRefreshInterval);
+              documentsRefreshInterval = null;
+            }
             return;
+          }
+          
+          // Check if any documents are still processing
+          const hasProcessing = documents.some(doc => doc.status === "processing");
+          
+          // Auto-refresh if there are processing documents
+          if (hasProcessing && !documentsRefreshInterval) {
+            documentsRefreshInterval = setInterval(() => {
+              loadDocuments(false); // Refresh without status message
+            }, 5000); // Refresh every 5 seconds
+          } else if (!hasProcessing && documentsRefreshInterval) {
+            // Stop auto-refresh when all documents are done
+            clearInterval(documentsRefreshInterval);
+            documentsRefreshInterval = null;
           }
           documentsTable.innerHTML = `
             <table>
               <thead>
                 <tr>
-                  <th>Document ID</th>
                   <th>Filename</th>
                   <th>Type</th>
                   <th>Status</th>
+                  <th>Chunks</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 ${documents
                   .map(
-                    (document) => `
-                      <tr>
-                        <td>${document.id}</td>
-                        <td>${document.filename}</td>
-                        <td>${document.file_type}</td>
-                        <td>${document.status}</td>
-                      </tr>
-                    `
+                    (document) => {
+                      const statusClass = document.status === "indexed" ? "success" : 
+                                         document.status === "failed" ? "error" : 
+                                         document.status === "processing" ? "processing" : "";
+                      const statusDisplay = document.status === "processing" ? 
+                        `<span class="status-badge ${statusClass}">Processing...</span>` :
+                        document.status === "indexed" ? 
+                        `<span class="status-badge ${statusClass}">✓ Indexed</span>` :
+                        document.status === "failed" ? 
+                        `<span class="status-badge ${statusClass}">✗ Failed</span>` :
+                        `<span class="status-badge">${document.status}</span>`;
+                      
+                      const chunkCount = document.chunk_count !== null && document.chunk_count !== undefined 
+                        ? document.chunk_count 
+                        : document.status === "processing" ? "..." : "0";
+                      
+                      return `
+                        <tr>
+                          <td>${document.filename}</td>
+                          <td>${document.file_type.toUpperCase()}</td>
+                          <td>${statusDisplay}</td>
+                          <td>${chunkCount}</td>
+                          <td>
+                            ${document.status === "indexed" ? 
+                              `<button class="view-chunks-btn" onclick="viewChunks('${document.id}', '${businessClientId}', '${workspaceId}')">View Chunks</button>` : 
+                              ""}
+                          </td>
+                        </tr>
+                      `;
+                    }
                   )
                   .join("")}
               </tbody>
@@ -582,45 +775,76 @@
           formData.append("overlap_words", overlapWordsInput.value);
         }
         // Optimize timeout based on file size
+        // Small files are processed synchronously, so they need longer timeout
         const fileSizeKB = file.size / 1024;
         let timeout, statusMessage;
         if (fileSizeKB < 100) {
-          timeout = 60000; // 1 minute for very small files (< 100KB)
-          statusMessage = "Uploading document...";
+          // Very small files - processed synchronously, allow up to 2 minutes
+          timeout = 120000; // 2 minutes for very small files (< 100KB) - synchronous processing
+          statusMessage = "Processing small file synchronously...";
         } else if (fileSizeKB < 1000) {
+          // Small-medium files - may be synchronous or background
           timeout = 180000; // 3 minutes for small files (< 1MB)
-          statusMessage = "Uploading document... This may take a minute.";
+          statusMessage = "Processing document...";
         } else {
-          timeout = 600000; // 10 minutes for large files
-          statusMessage = "Uploading document... This may take a few minutes for large PDFs.";
+          // Large files - always background, shorter timeout for upload
+          timeout = 60000; // 1 minute for upload (processing happens in background)
+          statusMessage = "Uploading large document... Processing will continue in background.";
         }
         
-        setStatus(uploadStatus, "Uploading file...");
+        setStatus(uploadStatus, statusMessage);
         let documentId = null;
         try {
-          // Upload file - returns immediately with processing status
+          // Upload file - small files processed synchronously, large files in background
           const result = await apiFetch(
             `/api/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents/upload`,
             {
               method: "POST",
               body: formData,
-              timeout: 30000, // 30 seconds for file upload (processing happens in background)
+              timeout: timeout, // Dynamic timeout based on file size
             }
           );
           
           documentId = result.document_id;
-          setStatus(uploadStatus, "File uploaded. Processing in background...", "success");
+          
+          // Check if processing completed synchronously
+          if (result.status === "indexed") {
+            setStatus(uploadStatus, `Document indexed successfully! ${result.chunk_count || 0} chunks created.`, "success");
+            ragFileInput.value = "";
+            await loadDocuments();
+            await loadOverview();
+            logEvent(
+              "info",
+              "rag",
+              "document_indexed",
+              `document_id=${documentId} file=${file.name} chunks=${result.chunk_count || 0}`
+            );
+            return;
+          }
+          
+          // If still processing, show appropriate message
+          if (result.status === "processing") {
+            if (fileSizeKB < 100) {
+              setStatus(uploadStatus, "Processing small file... This should complete quickly.", "success");
+            } else {
+              setStatus(uploadStatus, "File uploaded. Processing in background...", "success");
+            }
+          } else {
+            setStatus(uploadStatus, `File uploaded. Status: ${result.status}`, "success");
+          }
+          
           ragFileInput.value = "";
           
           logEvent(
             "info",
             "rag",
             "document_upload_started",
-            `business=${businessClientId} workspace=${workspaceId} file=${file.name} document_id=${documentId}`
+            `business=${businessClientId} workspace=${workspaceId} file=${file.name} document_id=${documentId} status=${result.status}`
           );
           
-          // Poll for status updates
-          const pollStatus = async () => {
+          // Poll for status updates (only if still processing)
+          if (result.status === "processing") {
+            const pollStatus = async () => {
             const maxAttempts = 120; // 10 minutes max (5s intervals)
             let attempts = 0;
             
@@ -632,14 +856,14 @@
                 );
                 
                 if (doc.status === "indexed") {
-                  setStatus(uploadStatus, "Document processed and indexed successfully!", "success");
+                  setStatus(uploadStatus, `Document indexed successfully! ${doc.chunk_count} chunks created.`, "success");
                   await loadDocuments();
                   await loadOverview();
                   logEvent(
                     "info",
                     "rag",
                     "document_indexed",
-                    `document_id=${documentId} file=${file.name}`
+                    `document_id=${documentId} file=${file.name} chunks=${doc.chunk_count}`
                   );
                   return true;
                 } else if (doc.status === "failed") {
@@ -654,8 +878,13 @@
                     await loadDocuments();
                     return true;
                   }
-                  // Continue polling
-                  setStatus(uploadStatus, `Processing... (${attempts * 5}s elapsed)`);
+                  // Show progress with chunk count if available
+                  const chunkInfo = doc.chunk_count > 0 ? ` (${doc.chunk_count} chunks so far)` : "";
+                  setStatus(uploadStatus, `Processing... ${chunkInfo} (${attempts * 5}s elapsed)`);
+                  // Refresh documents list to show updated chunk count
+                  if (attempts % 3 === 0) { // Refresh every 15 seconds
+                    await loadDocuments();
+                  }
                   setTimeout(checkStatus, 5000); // Check every 5 seconds
                   return false;
                 }
@@ -676,6 +905,7 @@
           };
           
           await pollStatus();
+          }
           
         } catch (error) {
           const errorMsg = error.message || "Unknown error occurred";
@@ -759,6 +989,54 @@
 
       workspaceSelect.addEventListener("change", loadDocuments);
       uploadButton.addEventListener("click", uploadDocument);
+
+      // View chunks function
+      window.viewChunks = async (documentId, businessClientId, workspaceId) => {
+        const modal = document.getElementById("chunks-modal");
+        const content = document.getElementById("chunks-content");
+        const title = document.getElementById("chunks-modal-title");
+        
+        modal.classList.add("open");
+        content.innerHTML = '<div class="empty-state">Loading chunks...</div>';
+        
+        try {
+          const chunks = await apiFetch(
+            `/api/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents/${documentId}/chunks?limit=100`
+          );
+          
+          if (!chunks.length) {
+            content.innerHTML = '<div class="empty-state">No chunks found for this document.</div>';
+            return;
+          }
+          
+          title.textContent = `Document Chunks (${chunks.length} total)`;
+          content.innerHTML = chunks.map((chunk, idx) => `
+            <div class="chunk-item">
+              <div class="chunk-header">
+                <span>Chunk #${chunk.chunk_index + 1}${chunk.page_number ? ` | Page ${chunk.page_number}` : ""}</span>
+                <span>ID: ${chunk.id.substring(0, 8)}...</span>
+              </div>
+              <div class="chunk-content">${chunk.content.substring(0, 500)}${chunk.content.length > 500 ? "..." : ""}</div>
+            </div>
+          `).join("");
+          
+          logEvent("info", "rag", "chunks_viewed", `document_id=${documentId} chunks=${chunks.length}`);
+        } catch (error) {
+          content.innerHTML = `<div class="empty-state">Error loading chunks: ${error.message}</div>`;
+          logEvent("error", "rag", "chunks_load_failed", `document_id=${documentId} error=${error.message}`);
+        }
+      };
+
+      window.closeChunksModal = () => {
+        document.getElementById("chunks-modal").classList.remove("open");
+      };
+
+      // Close modal on outside click
+      document.getElementById("chunks-modal").addEventListener("click", (e) => {
+        if (e.target.id === "chunks-modal") {
+          window.closeChunksModal();
+        }
+      });
       refreshOverviewButton.addEventListener("click", loadOverview);
 
       const email = localStorage.getItem("adminEmail") || "Admin";

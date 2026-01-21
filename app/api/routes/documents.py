@@ -1,13 +1,13 @@
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin
-from app.db.session import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, get_session
 from app.models import Business, BusinessAdmin, Document, DocumentChunk, Workspace, WorkspaceConfig
-from app.schemas.document import DocumentChunkOut, DocumentOut, DocumentUploadResponse
+from app.schemas.document import DocumentChunkOut, DocumentOut, DocumentStatusResponse, DocumentUploadResponse
 from app.services.rag_ingest_service import RagIngestService
 
 logger = logging.getLogger(__name__)
@@ -55,8 +55,16 @@ async def _process_document_background(
 ) -> None:
     """Background task to process document ingestion."""
     import uuid
+    import asyncio
+    
+    # Small delay to ensure the response is sent first
+    await asyncio.sleep(0.1)
+    
     async with AsyncSessionLocal() as bg_session:
+        document = None
         try:
+            logger.info(f"Background task started for document {document_id}")
+            
             # Convert string ID to UUID
             doc_uuid = uuid.UUID(document_id)
             
@@ -92,14 +100,14 @@ async def _process_document_background(
             ).scalar_one()
             
             logger.info(
-                f"Background processing started: document_id={document_id}, "
+                f"Background processing started: document_id={document_id}, filename={document.filename}, "
                 f"chunk_words={chunk_words or config.chunk_words}, "
                 f"overlap_words={overlap_words or config.overlap_words}"
             )
             
             service = RagIngestService()
             await service.ingest_document(bg_session, document, config, chunk_words, overlap_words)
-            logger.info(f"Background processing completed: document_id={document_id}")
+            logger.info(f"Background processing completed successfully: document_id={document_id}")
             
         except Exception as exc:
             logger.error(
@@ -109,10 +117,11 @@ async def _process_document_background(
             )
             try:
                 # Try to update document status if we have it
-                if 'document' in locals() and document:
+                if document:
                     document.status = "failed"
                     document.meta_json = f"{type(exc).__name__}: {str(exc)}"
                     await bg_session.commit()
+                    logger.info(f"Updated document {document_id} status to failed")
             except Exception as commit_exc:
                 logger.error(f"Failed to update document status: {commit_exc}")
 
@@ -170,18 +179,36 @@ async def upload_document(
         await session.refresh(document)
         logger.info(f"Document record created: document_id={document.id}, status=processing")
         
-        # Add background task to process document
-        background_tasks.add_task(
-            _process_document_background,
-            str(document.id),
-            business_client_id,
-            workspace_id,
-            chunk_words,
-            overlap_words,
-        )
-        logger.info(f"Background task added for document {document.id}")
+        # Get config for processing decision
+        config = (
+            await session.execute(
+                select(WorkspaceConfig).where(WorkspaceConfig.workspace_id == workspace.id)
+            )
+        ).scalar_one()
         
-        # Return immediately with processing status
+        # ALWAYS use background processing for better performance and non-blocking requests
+        # Even small files can take time due to embedding API calls and database writes
+        file_size_kb = file_size / 1024
+        estimated_pages = max(1, int(file_size_kb / 50))
+        
+        logger.info(f"File detected ({file_size_kb:.1f}KB, ~{estimated_pages} pages), using background processing for non-blocking upload")
+        try:
+            background_tasks.add_task(
+                _process_document_background,
+                str(document.id),
+                business_client_id,
+                workspace_id,
+                chunk_words,
+                overlap_words,
+            )
+            logger.info(f"Background task added for document {document.id}")
+        except Exception as task_error:
+            logger.error(f"Failed to add background task: {task_error}", exc_info=True)
+            # If background task fails, still return success but log the error
+            # The document will remain in "processing" status and can be retried
+            logger.warning(f"Background task setup failed, document {document.id} will remain in processing status")
+        
+        # Return immediately with processing status (non-blocking)
         return DocumentUploadResponse(
             document_id=str(document.id),
             status="processing",
@@ -268,17 +295,39 @@ async def list_documents(
     stmt = select(Document).where(
         Document.business_id == business.id, Document.workspace_id == workspace.id
     )
-    return list((await session.execute(stmt)).scalars().all())
+    documents = list((await session.execute(stmt)).scalars().all())
+    
+    # Add chunk count for each document
+    result = []
+    for doc in documents:
+        chunk_count = (
+            await session.execute(
+                select(func.count(DocumentChunk.id)).where(DocumentChunk.document_id == doc.id)
+            )
+        ).scalar() or 0
+        
+        doc_dict = {
+            "id": doc.id,
+            "filename": doc.filename,
+            "file_type": doc.file_type,
+            "status": doc.status,
+            "chunk_count": chunk_count,
+            "indexed_at": doc.indexed_at.isoformat() if doc.indexed_at else None,
+            "meta_json": doc.meta_json,
+        }
+        result.append(DocumentOut(**doc_dict))
+    
+    return result
 
 
-@router.get("/documents/{document_id}", response_model=DocumentOut)
+@router.get("/documents/{document_id}", response_model=DocumentStatusResponse)
 async def get_document(
     business_client_id: str,
     workspace_id: str,
     document_id: str,
     session: AsyncSession = Depends(get_session),
     admin: BusinessAdmin = Depends(get_current_admin),
-) -> DocumentOut:
+) -> DocumentStatusResponse:
     business, workspace = await _get_workspace(session, business_client_id, workspace_id)
     _ensure_access(admin, business)
     stmt = select(Document).where(
@@ -289,7 +338,23 @@ async def get_document(
     document = (await session.execute(stmt)).scalar_one_or_none()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    return document
+    
+    # Get chunk count
+    chunk_count = (
+        await session.execute(
+            select(func.count(DocumentChunk.id)).where(DocumentChunk.document_id == document.id)
+        )
+    ).scalar() or 0
+    
+    return DocumentStatusResponse(
+        id=document.id,
+        filename=document.filename,
+        file_type=document.file_type,
+        status=document.status,
+        chunk_count=chunk_count,
+        indexed_at=document.indexed_at.isoformat() if document.indexed_at else None,
+        meta_json=document.meta_json,
+    )
 
 
 @router.delete("/documents/{document_id}")

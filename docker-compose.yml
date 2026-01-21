@@ -20,6 +20,12 @@ services:
       - "8000:8000"
     depends_on:
       - postgres
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
 
 volumes:
   pgvector_data:
