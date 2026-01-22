@@ -1,4 +1,5 @@
 import asyncio
+import gc
 import logging
 import os
 import time
@@ -6,7 +7,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from pypdf import PdfReader
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
+
+try:
+    import fitz  # PyMuPDF - more memory efficient
+    HAS_PYMUPDF = True
+except ImportError:
+    HAS_PYMUPDF = False
+    from pypdf import PdfReader
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +33,30 @@ class RagIngestService:
     def __init__(self) -> None:
         self.settings = get_settings()
         self.embedding_service = EmbeddingService()
+    
+    def _check_memory(self) -> tuple[float, float]:
+        """Check current memory usage. Returns (used_gb, percent)."""
+        if not HAS_PSUTIL:
+            return 0.0, 0.0
+        try:
+            process = psutil.Process()
+            mem_info = process.memory_info()
+            used_gb = mem_info.rss / (1024 ** 3)  # Convert to GB
+            percent = process.memory_percent()
+            return used_gb, percent
+        except Exception:
+            return 0.0, 0.0
+    
+    def _check_memory_safe(self) -> bool:
+        """Check if memory usage is safe (< 3.5GB used)."""
+        if not HAS_PSUTIL:
+            return True  # Can't check, assume safe
+        used_gb, percent = self._check_memory()
+        if used_gb > 3.5:  # More than 3.5GB used
+            logger.warning(f"High memory usage detected: {used_gb:.2f}GB ({percent:.1f}%)")
+            gc.collect()  # Force cleanup
+            return False
+        return True
 
     async def ingest_document(
         self,
@@ -67,37 +103,117 @@ class RagIngestService:
             try:
                 # For PDFs, process page by page to avoid memory issues
                 if document.file_type == "pdf":
-                    # Extract pages one at a time
-                    def extract_pages_incremental():
-                        """Extract pages one at a time to save memory."""
-                        reader = PdfReader(str(file_path))
-                        for index, page in enumerate(reader.pages, start=1):
-                            try:
-                                text = page.extract_text() or ""
-                                yield index, text
-                            except Exception as e:
-                                logger.warning(f"Error extracting page {index}: {e}")
-                                yield index, ""
+                    # Extract and process PDF entirely in thread pool to avoid memory issues
+                    def extract_and_process_pdf():
+                        """Extract all pages and chunk them in thread pool to save memory."""
+                        doc = None
+                        try:
+                            logger.debug(f"Opening PDF file: {file_path}")
+                            # Force garbage collection before opening PDF
+                            gc.collect()
+                            
+                            all_chunks = []
+                            
+                            # Use PyMuPDF (fitz) if available - much more memory efficient
+                            if HAS_PYMUPDF:
+                                logger.debug("Using PyMuPDF (fitz) for memory-efficient PDF processing")
+                                doc = fitz.open(str(file_path))
+                                total_pages = len(doc)
+                                logger.debug(f"PDF has {total_pages} pages")
+                                
+                                # Process pages one at a time with aggressive cleanup
+                                for index in range(total_pages):
+                                    try:
+                                        page = doc[index]
+                                        text = page.get_text() or ""
+                                        
+                                        # Immediately delete page reference
+                                        del page
+                                        
+                                        if not text.strip():
+                                            logger.debug(f"Page {index + 1} has no text, skipping")
+                                            del text
+                                            gc.collect()
+                                            continue
+                                        
+                                        # Chunk immediately to free text memory
+                                        page_chunks = self._chunk_text(text, chunk_words, overlap_words)
+                                        del text
+                                        
+                                        for chunk in page_chunks:
+                                            all_chunks.append((index + 1, chunk))
+                                        
+                                        # Force garbage collection every page
+                                        gc.collect()
+                                        
+                                        if (index + 1) % 5 == 0:
+                                            logger.debug(f"Processed {index + 1}/{total_pages} pages, {len(all_chunks)} chunks so far")
+                                    except Exception as e:
+                                        logger.warning(f"Error extracting page {index + 1}: {e}")
+                                        gc.collect()
+                            else:
+                                # Fallback to pypdf
+                                logger.debug("Using pypdf for PDF processing")
+                                reader = PdfReader(str(file_path), strict=False)
+                                total_pages = len(reader.pages)
+                                logger.debug(f"PDF has {total_pages} pages")
+                                
+                                for index in range(1, total_pages + 1):
+                                    try:
+                                        page = reader.pages[index - 1]
+                                        text = page.extract_text() or ""
+                                        del page
+                                        
+                                        if not text.strip():
+                                            logger.debug(f"Page {index} has no text, skipping")
+                                            del text
+                                            gc.collect()
+                                            continue
+                                        
+                                        page_chunks = self._chunk_text(text, chunk_words, overlap_words)
+                                        del text
+                                        
+                                        for chunk in page_chunks:
+                                            all_chunks.append((index, chunk))
+                                        
+                                        gc.collect()
+                                        
+                                        if index % 5 == 0:
+                                            logger.debug(f"Processed {index}/{total_pages} pages, {len(all_chunks)} chunks so far")
+                                    except Exception as e:
+                                        logger.warning(f"Error extracting page {index}: {e}")
+                                        gc.collect()
+                            
+                            logger.debug(f"PDF processing complete: {len(all_chunks)} chunks from {total_pages} pages")
+                            return all_chunks, total_pages
+                        except MemoryError as mem_err:
+                            logger.error(f"Out of memory while reading PDF: {mem_err}")
+                            gc.collect()
+                            raise
+                        except Exception as e:
+                            logger.error(f"Error reading PDF: {type(e).__name__}: {e}", exc_info=True)
+                            raise
+                        finally:
+                            # Explicitly clean up and force GC
+                            if doc:
+                                try:
+                                    doc.close()
+                                except:
+                                    pass
+                                del doc
+                            gc.collect()
                     
-                    # Process each page as we extract it
-                    for page_number, page_text in extract_pages_incremental():
-                        page_count += 1
-                        if page_count % 10 == 0:
-                            logger.debug(f"Processing page {page_number}...")
-                        
-                        # Chunk the page text
-                        if len(page_text) > 10000:
-                            # Large pages: chunk in thread pool
-                            chunk_list = await loop.run_in_executor(
-                                None,
-                                lambda pt=page_text: self._chunk_text(pt, chunk_words, overlap_words)
-                            )
-                        else:
-                            chunk_list = self._chunk_text(page_text, chunk_words, overlap_words)
-                        
-                        # Add chunks for this page
-                        for chunk in chunk_list:
-                            chunks.append((page_number, chunk))
+                    # Run entire PDF processing in thread pool (isolates memory usage)
+                    logger.debug("Processing PDF in thread pool to avoid memory issues")
+                    try:
+                        chunks_list, page_count = await loop.run_in_executor(None, extract_and_process_pdf)
+                        chunks = chunks_list
+                    except MemoryError as mem_err:
+                        logger.error(f"Memory error during PDF processing: {mem_err}")
+                        document.status = "failed"
+                        document.meta_json = f"Out of memory: PDF too large. File size: {file_path.stat().st_size / 1024:.1f}KB"
+                        await session.commit()
+                        raise
                 else:
                     # For TXT files, process normally (they're smaller)
                     text_pages = await loop.run_in_executor(
@@ -150,12 +266,49 @@ class RagIngestService:
             else:
                 logger.debug(f"Generating embeddings for {num_chunks} chunks (small file)")
             
-            # Phase 2: Generate embeddings with error handling
+            # Phase 2: Generate embeddings in small batches to minimize memory usage
             embedding_start = time.time()
             try:
-                embeddings = await self.embedding_service.embed_texts(
-                    [chunk for _, chunk in chunks], config.embedding_model
-                )
+                # Check memory before embedding
+                if not self._check_memory_safe():
+                    logger.warning("High memory usage before embedding, forcing GC")
+                    gc.collect()
+                
+                # Process embeddings in small batches to avoid memory accumulation
+                chunk_texts = [chunk for _, chunk in chunks]
+                num_chunks = len(chunk_texts)
+                
+                # Use very small batches (25 chunks) to minimize memory
+                embed_batch_size = 25
+                embeddings = []
+                
+                logger.debug(f"Generating embeddings in batches of {embed_batch_size} to minimize memory")
+                
+                for i in range(0, num_chunks, embed_batch_size):
+                    batch_texts = chunk_texts[i:i + embed_batch_size]
+                    
+                    # Check memory before each batch
+                    if not self._check_memory_safe():
+                        logger.warning(f"High memory before embedding batch {i // embed_batch_size + 1}, forcing GC")
+                        gc.collect()
+                    
+                    # Generate embeddings for this batch
+                    batch_embeddings = await self.embedding_service.embed_texts(
+                        batch_texts, config.embedding_model, batch_size=len(batch_texts)
+                    )
+                    embeddings.extend(batch_embeddings)
+                    
+                    # Clear batch from memory immediately
+                    del batch_texts, batch_embeddings
+                    gc.collect()
+                    
+                    if (i // embed_batch_size + 1) % 10 == 0:
+                        logger.debug(f"Generated embeddings for {len(embeddings)}/{num_chunks} chunks")
+                
+                # Clear chunk texts from memory
+                del chunk_texts
+                gc.collect()
+                
                 embedding_time = time.time() - embedding_start
                 
                 if is_small_file:
@@ -165,6 +318,11 @@ class RagIngestService:
                         f"Generated {len(embeddings)} embeddings successfully in {embedding_time:.2f}s "
                         f"({embedding_time/len(embeddings):.3f}s per embedding)"
                     )
+                
+                # Check memory after embedding
+                used_gb, percent = self._check_memory()
+                logger.debug(f"Memory after embeddings: {used_gb:.2f}GB ({percent:.1f}%)")
+                
             except Exception as embed_error:
                 logger.error(f"Embedding generation failed: {embed_error}", exc_info=True)
                 document.status = "failed"
@@ -180,33 +338,29 @@ class RagIngestService:
                 await session.commit()
                 raise RuntimeError(error_msg)
 
-            # Phase 3: Store in database with optimized batch inserts
+            # Phase 3: Store in database with optimized batch inserts and memory monitoring
             logger.debug(f"Storing {len(chunks)} document chunks in database")
             db_start = time.time()
             
             try:
-                # Optimize batch size based on chunk count
-                # Small files: single insert, Medium: 100 chunks/batch, Large: 200 chunks/batch
-                if len(chunks) <= 50:
-                    # Small files: single insert (fastest)
-                    batch_size = len(chunks)
-                elif len(chunks) <= 500:
-                    # Medium files: 100 chunks per batch
-                    batch_size = 100
-                else:
-                    # Large files: 200 chunks per batch (fewer commits = faster)
-                    batch_size = 200
-                
+                # Use smaller batches to reduce memory pressure
+                # Process in batches of 50 to minimize memory usage
+                batch_size = 50
                 total_batches = (len(chunks) + batch_size - 1) // batch_size
                 saved_chunks = 0
                 
                 for batch_idx in range(0, len(chunks), batch_size):
+                    # Check memory before each batch
+                    if not self._check_memory_safe():
+                        logger.warning(f"High memory usage before batch {batch_idx // batch_size + 1}, forcing GC")
+                        gc.collect()
+                    
                     batch_chunks = chunks[batch_idx:batch_idx + batch_size]
                     batch_embeddings = embeddings[batch_idx:batch_idx + batch_size]
                     batch_num = (batch_idx // batch_size) + 1
                     
                     try:
-                        # Create all chunk objects
+                        # Create chunk objects for this batch
                         chunk_objects = [
                             DocumentChunk(
                                 business_id=document.business_id,
@@ -220,34 +374,29 @@ class RagIngestService:
                             for index, ((page, content), embedding) in enumerate(zip(batch_chunks, batch_embeddings))
                         ]
                         
-                        # Bulk insert for better performance
+                        # Add and commit immediately to free memory
                         session.add_all(chunk_objects)
+                        await session.commit()
+                        saved_chunks += len(batch_chunks)
                         
-                        # For small files, commit once. For larger files, commit every batch for progress visibility
-                        if len(chunks) <= 50:
-                            # Small files: commit once at the end
-                            pass
-                        else:
-                            # Larger files: commit each batch for progress tracking
-                            await session.flush()  # Flush instead of commit for better performance
-                            if batch_num % 5 == 0 or batch_num == total_batches:
-                                # Commit every 5 batches or on last batch
-                                await session.commit()
-                            saved_chunks += len(batch_chunks)
-                            if batch_num % 5 == 0:
-                                logger.debug(f"Stored batch {batch_num}/{total_batches} ({saved_chunks}/{len(chunks)} chunks saved)")
+                        # Clear batch data from memory
+                        del chunk_objects, batch_chunks, batch_embeddings
+                        gc.collect()
+                        
+                        if batch_num % 10 == 0 or batch_num == total_batches:
+                            logger.debug(f"Stored batch {batch_num}/{total_batches} ({saved_chunks}/{len(chunks)} chunks saved)")
                     except Exception as batch_error:
                         logger.error(f"Error saving batch {batch_num}: {batch_error}", exc_info=True)
                         await session.rollback()
-                        # Try to save what we can - continue with next batch
                         if saved_chunks == 0:
-                            # If first batch fails, mark as failed
                             raise
                         logger.warning(f"Continuing after batch {batch_num} error, {saved_chunks} chunks already saved")
                 
-                # Final commit for all chunks
-                await session.commit()
-                saved_chunks = len(chunks)
+                # Clear chunks and embeddings from memory
+                del chunks, embeddings
+                gc.collect()
+                
+                saved_chunks = saved_chunks  # Final count
                 
                 # Update document status to indexed
                 document.status = "indexed"

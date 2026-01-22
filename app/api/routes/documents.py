@@ -53,9 +53,10 @@ async def _process_document_background(
     chunk_words: int | None,
     overlap_words: int | None,
 ) -> None:
-    """Background task to process document ingestion."""
+    """Background task to process document ingestion with timeout and error handling."""
     import uuid
     import asyncio
+    import signal
     
     # Small delay to ensure the response is sent first
     await asyncio.sleep(0.1)
@@ -105,9 +106,27 @@ async def _process_document_background(
                 f"overlap_words={overlap_words or config.overlap_words}"
             )
             
-            service = RagIngestService()
-            await service.ingest_document(bg_session, document, config, chunk_words, overlap_words)
-            logger.info(f"Background processing completed successfully: document_id={document_id}")
+            # Add timeout to prevent hanging (30 minutes max)
+            try:
+                service = RagIngestService()
+                await asyncio.wait_for(
+                    service.ingest_document(bg_session, document, config, chunk_words, overlap_words),
+                    timeout=1800.0  # 30 minutes
+                )
+                logger.info(f"Background processing completed successfully: document_id={document_id}")
+            except asyncio.TimeoutError:
+                logger.error(f"Background processing timed out for document {document_id}")
+                document.status = "failed"
+                document.meta_json = "Processing timed out after 30 minutes"
+                await bg_session.commit()
+            except MemoryError as mem_err:
+                logger.error(f"Out of memory error for document {document_id}: {mem_err}")
+                document.status = "failed"
+                document.meta_json = f"Out of memory: PDF may be too large or complex. Try splitting the document or increasing container memory."
+                await bg_session.commit()
+            except Exception as proc_exc:
+                # Re-raise to be caught by outer handler
+                raise
             
         except Exception as exc:
             logger.error(
@@ -118,10 +137,11 @@ async def _process_document_background(
             try:
                 # Try to update document status if we have it
                 if document:
+                    error_msg = str(exc)[:500]  # Limit error message length
                     document.status = "failed"
-                    document.meta_json = f"{type(exc).__name__}: {str(exc)}"
+                    document.meta_json = f"{type(exc).__name__}: {error_msg}"
                     await bg_session.commit()
-                    logger.info(f"Updated document {document_id} status to failed")
+                    logger.info(f"Updated document {document_id} status to failed: {error_msg}")
             except Exception as commit_exc:
                 logger.error(f"Failed to update document status: {commit_exc}")
 
