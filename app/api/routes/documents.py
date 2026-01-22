@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from sqlalchemy import func, select
@@ -175,15 +176,21 @@ async def upload_document(
         if file_type not in {"pdf", "txt"}:
             raise HTTPException(status_code=400, detail="Unsupported file type. Only PDF and TXT files are supported.")
 
-        # Read and save file
-        logger.debug(f"Reading file content: {file.filename}")
+        # Stream file to disk to avoid loading large files into memory
+        logger.debug(f"Streaming file content to disk: {file.filename}")
         service = RagIngestService()
-        data = await file.read()
-        file_size = len(data)
-        logger.info(f"File read successfully: {file.filename}, size: {file_size} bytes")
-        
-        storage_path = service.store_upload(file.filename, data)
-        logger.debug(f"File stored at: {storage_path}")
+        storage_dir = Path(service.settings.file_storage_path)
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        storage_path = storage_dir / file.filename
+        file_size = 0
+        with storage_path.open("wb") as buffer:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                file_size += len(chunk)
+                buffer.write(chunk)
+        logger.info(f"File stored successfully: {file.filename}, size: {file_size} bytes")
         
         # Create document record with "processing" status
         document = Document(
@@ -191,7 +198,7 @@ async def upload_document(
             workspace_id=workspace.id,
             filename=file.filename,
             file_type=file_type,
-            storage_path=storage_path,
+            storage_path=str(storage_path),
             status="processing",
         )
         session.add(document)
