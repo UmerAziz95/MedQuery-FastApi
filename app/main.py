@@ -1,4 +1,6 @@
 import logging
+import signal
+import sys
 import traceback
 from contextlib import asynccontextmanager
 
@@ -19,6 +21,7 @@ from app.api.routes import (
     workspaces_router,
 )
 from app.core.config import get_settings
+from app.core.crash_logger import crash_logger
 from app.core.seed import seed_initial_admin
 
 settings = get_settings()
@@ -32,10 +35,39 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def signal_handler(signum, frame):
+    """Handle termination signals and log crash."""
+    logger.critical(f"Received signal {signum}, logging crash before exit...")
+    try:
+        # Create a dummy exception for logging
+        class SignalException(Exception):
+            pass
+        
+        exc = SignalException(f"Application terminated by signal {signum}")
+        crash_logger.log_crash(
+            exc, type(exc), None,
+            context={"signal_number": signum, "signal_name": signal.Signals(signum).name},
+            additional_info={"frame_info": str(frame)}
+        )
+    except Exception as log_error:
+        logger.error(f"Failed to log crash on signal: {log_error}")
+    
+    sys.exit(1)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Register signal handlers for crash logging
+    if sys.platform != "win32":  # Signal handlers work differently on Windows
+        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
+        # Note: SIGKILL cannot be caught
+    
+    logger.info("Application starting up...")
     await seed_initial_admin()
+    logger.info("Application startup complete")
     yield
+    logger.info("Application shutting down...")
 
 
 app = FastAPI(
@@ -61,16 +93,44 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    exc_type = type(exc).__name__
+    exc_type = type(exc)
     exc_message = str(exc)
-    exc_traceback = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    exc_traceback = exc.__traceback__
+    
+    # Determine if this is a critical crash
+    is_critical = isinstance(exc, (MemoryError, SystemError, KeyboardInterrupt)) or \
+                  "out of memory" in exc_message.lower() or \
+                  "killed" in exc_message.lower()
+    
+    # Log with crash logger
+    context = {
+        "request_path": request.url.path,
+        "request_method": request.method,
+        "query_params": dict(request.query_params),
+        "client_host": request.client.host if request.client else None,
+    }
+    
+    if is_critical:
+        crash_log_file = crash_logger.log_crash(
+            exc, exc_type, exc_traceback,
+            context=context,
+            additional_info={
+                "request_headers": dict(request.headers),
+                "environment": settings.environment,
+            }
+        )
+        logger.critical(f"CRITICAL CRASH LOGGED: {crash_log_file}")
+    else:
+        crash_logger.log_error(exc, exc_type, exc_traceback, context=context)
+    
+    exc_traceback_str = "".join(traceback.format_exception(exc_type, exc, exc_traceback))
     
     logger.error(
-        f"Unhandled Exception: {exc_type} - {exc_message} | "
+        f"Unhandled Exception: {exc_type.__name__} - {exc_message} | "
         f"Path: {request.url.path} | Method: {request.method} | "
         f"Query Params: {dict(request.query_params)} | "
         f"Headers: {dict(request.headers)} | "
-        f"Traceback:\n{exc_traceback}",
+        f"Traceback:\n{exc_traceback_str}",
         exc_info=True
     )
     
@@ -80,9 +140,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
             "status": 500,
             "message": "Internal server error",
             "details": {
-                "exception_type": exc_type,
+                "exception_type": exc_type.__name__,
                 "exception_message": exc_message,
-                "traceback": exc_traceback if settings.environment == "development" else None,
+                "traceback": exc_traceback_str if settings.environment == "development" else None,
             },
         },
     )
