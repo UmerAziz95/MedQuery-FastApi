@@ -35,6 +35,7 @@ try:
 except ImportError:
     HAS_PYPDF = False
 from sqlalchemy import delete
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -173,6 +174,10 @@ class RagIngestService:
             )
             count_proc.start()
             count_proc.join(timeout=30)
+            if count_proc.is_alive():
+                logger.warning("Subprocess page count timed out; terminating child process")
+                count_proc.terminate()
+                count_proc.join(timeout=5)
             if count_proc.exitcode != 0:
                 logger.warning("Subprocess page count failed, falling back to in-process PDF iteration")
             else:
@@ -191,6 +196,10 @@ class RagIngestService:
                         )
                         p.start()
                         p.join(timeout=60)
+                        if p.is_alive():
+                            logger.warning(f"Page {i + 1} extraction timed out; terminating child process")
+                            p.terminate()
+                            p.join(timeout=5)
                         if p.exitcode == 0:
                             try:
                                 page_text = q.get_nowait() or ""
@@ -344,7 +353,13 @@ class RagIngestService:
     async def _update_document_status(self, session: AsyncSession, document: Document, status: str, message: str) -> None:
         """Helper to update document status with error handling."""
         try:
-            await session.refresh(document)
+            try:
+                await session.refresh(document)
+            except (InvalidRequestError, AttributeError):
+                document = await session.get(Document, document.id)
+                if not document:
+                    logger.error("Document not found while updating status")
+                    return
             document.status = status
             document.meta_json = message[:1000]  # Limit message length
             await session.commit()
@@ -433,6 +448,7 @@ class RagIngestService:
                     ]
                     session.add_all(chunk_objects)
                     await session.commit()
+                    session.expunge_all()
                     new_total = total_chunks + len(chunk_objects)
                     crash_logger.write_progress("after_commit", {"page": page_count, "total_chunks": new_total})
                     sys.stdout.flush()
@@ -471,7 +487,12 @@ class RagIngestService:
                 logger.warning(f"[PDF] Document {document.id} produced no chunks")
                 return
             
-            await session.refresh(document)
+            try:
+                await session.refresh(document)
+            except (InvalidRequestError, AttributeError):
+                document = await session.get(Document, document.id)
+                if not document:
+                    raise RuntimeError("Document not found for final status update")
             document.status = "indexed"
             document.indexed_at = datetime.utcnow()
             document.meta_json = (
@@ -740,6 +761,7 @@ class RagIngestService:
                 session.add_all(chunk_objects)
                 logger.info(f"[STEP 4] Chunks added to session, committing transaction...")
                 await session.commit()
+                session.expunge_all()
                 
                 insert_time = time.time() - insert_start
                 step_info["insert_completed"] = True
@@ -788,7 +810,12 @@ class RagIngestService:
                 f"Embed: {embedding_time:.2f}s, Insert: {insert_time:.2f}s)"
             )
 
-            await session.refresh(document)
+            try:
+                await session.refresh(document)
+            except (InvalidRequestError, AttributeError):
+                document = await session.get(Document, document.id)
+                if not document:
+                    raise RuntimeError("Document not found for final status update")
             document.status = "indexed"
             document.indexed_at = datetime.utcnow()
             document.meta_json = (
@@ -862,7 +889,12 @@ class RagIngestService:
                 exc_info=True
             )
             try:
-                await session.refresh(document)
+                try:
+                    await session.refresh(document)
+                except (InvalidRequestError, AttributeError):
+                    document = await session.get(Document, document.id)
+                    if not document:
+                        raise
                 if document.status == "processing":
                     document.status = "failed"
                     document.meta_json = (
