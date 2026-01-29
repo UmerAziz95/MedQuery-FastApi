@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from pathlib import Path
 
@@ -6,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin
+from app.core.config import get_settings
 from app.core.crash_logger import crash_logger
 from app.db.session import AsyncSessionLocal, get_session
 from app.models import Business, BusinessAdmin, Document, DocumentChunk, Workspace, WorkspaceConfig
@@ -18,6 +20,7 @@ router = APIRouter(
     prefix="/admin/businesses/{business_client_id}/workspaces/{workspace_id}",
     tags=["Documents"],
 )
+_INGEST_LOCK = asyncio.Lock()
 
 
 async def _get_workspace(
@@ -54,6 +57,7 @@ async def _process_document_background(
     workspace_id: str,
     chunk_words: int | None,
     overlap_words: int | None,
+    delay_before_start: bool = True,
 ) -> None:
     """Background task to process document ingestion with timeout and error handling."""
     import uuid
@@ -61,184 +65,186 @@ async def _process_document_background(
     import signal
     
     # Small delay to ensure the response is sent first
-    await asyncio.sleep(0.1)
+    if delay_before_start:
+        await asyncio.sleep(0.1)
     
-    async with AsyncSessionLocal() as bg_session:
-        document = None
-        try:
-            logger.info(f"Background task started for document {document_id}")
-            
-            # Convert string ID to UUID
-            doc_uuid = uuid.UUID(document_id)
-            
-            # Get document
-            document = (
-                await bg_session.execute(
-                    select(Document).where(Document.id == doc_uuid)
-                )
-            ).scalar_one_or_none()
-            
-            if not document:
-                logger.error(f"Document {document_id} not found for background processing")
-                return
-            
-            # Get workspace config
-            workspace = (
-                await bg_session.execute(
-                    select(Workspace).where(Workspace.workspace_id == workspace_id)
-                )
-            ).scalar_one_or_none()
-            
-            if not workspace:
-                logger.error(f"Workspace {workspace_id} not found")
-                document.status = "failed"
-                document.meta_json = "Workspace not found"
-                await bg_session.commit()
-                return
-            
-            config = (
-                await bg_session.execute(
-                    select(WorkspaceConfig).where(WorkspaceConfig.workspace_id == workspace.id)
-                )
-            ).scalar_one()
-            
-            logger.info(
-                f"Background processing started: document_id={document_id}, filename={document.filename}, "
-                f"chunk_words={chunk_words or config.chunk_words}, "
-                f"overlap_words={overlap_words or config.overlap_words}"
-            )
-            
-            # Add timeout to prevent hanging (30 minutes max)
+    async with _INGEST_LOCK:
+        async with AsyncSessionLocal() as bg_session:
+            document = None
             try:
-                service = RagIngestService()
-                await asyncio.wait_for(
-                    service.ingest_document(bg_session, document, config, chunk_words, overlap_words),
-                    timeout=1800.0  # 30 minutes
-                )
-                logger.info(f"Background processing completed successfully: document_id={document_id}")
-            except asyncio.TimeoutError:
-                logger.error(f"Background processing timed out for document {document_id}")
-                # Refresh document to get latest state
-                await bg_session.refresh(document)
-                document.status = "failed"
-                document.meta_json = "Processing timed out after 30 minutes"
-                await bg_session.commit()
-            except MemoryError as mem_err:
-                # Log crash with detailed context
-                crash_logger.log_crash(
-                    mem_err, type(mem_err), mem_err.__traceback__,
-                    context={
-                        "operation": "background_document_processing",
-                        "document_id": document_id,
-                        "document_filename": document.filename if document else None,
-                        "business_client_id": business_client_id,
-                        "workspace_id": workspace_id,
-                    },
-                    additional_info={
-                        "chunk_words": chunk_words,
-                        "overlap_words": overlap_words,
-                    }
+                logger.info(f"Background task started for document {document_id}")
+                
+                # Convert string ID to UUID
+                doc_uuid = uuid.UUID(document_id)
+                
+                # Get document
+                document = (
+                    await bg_session.execute(
+                        select(Document).where(Document.id == doc_uuid)
+                    )
+                ).scalar_one_or_none()
+                
+                if not document:
+                    logger.error(f"Document {document_id} not found for background processing")
+                    return
+                
+                # Get workspace config
+                workspace = (
+                    await bg_session.execute(
+                        select(Workspace).where(Workspace.workspace_id == workspace_id)
+                    )
+                ).scalar_one_or_none()
+                
+                if not workspace:
+                    logger.error(f"Workspace {workspace_id} not found")
+                    document.status = "failed"
+                    document.meta_json = "Workspace not found"
+                    await bg_session.commit()
+                    return
+                
+                config = (
+                    await bg_session.execute(
+                        select(WorkspaceConfig).where(WorkspaceConfig.workspace_id == workspace.id)
+                    )
+                ).scalar_one()
+                
+                logger.info(
+                    f"Processing started: document_id={document_id}, filename={document.filename}, "
+                    f"chunk_words={chunk_words or config.chunk_words}, "
+                    f"overlap_words={overlap_words or config.overlap_words}"
                 )
                 
-                logger.error(f"Out of memory error for document {document_id}: {mem_err}")
-                # Refresh document to get latest state
-                await bg_session.refresh(document)
-                document.status = "failed"
-                document.meta_json = (
-                    f"Out of memory: PDF may be too large or complex. "
-                    f"Try splitting the document or increasing container memory. "
-                    f"Check logs/crashes/ for detailed crash report."
-                )
-                await bg_session.commit()
-            except KeyboardInterrupt:
-                # Handle graceful shutdown
-                logger.warning(f"Background processing interrupted for document {document_id}")
-                await bg_session.refresh(document)
-                document.status = "failed"
-                document.meta_json = "Processing interrupted"
-                await bg_session.commit()
-                raise
-            except Exception as proc_exc:
-                # Re-raise to be caught by outer handler
-                raise
-            
-        except Exception as exc:
-            # Determine if this is a critical crash
-            is_critical = isinstance(exc, (MemoryError, SystemError, KeyboardInterrupt)) or \
-                          "out of memory" in str(exc).lower() or \
-                          "killed" in str(exc).lower()
-            
-            # Log with crash logger
-            if is_critical:
-                crash_logger.log_crash(
-                    exc, type(exc), exc.__traceback__,
-                    context={
-                        "operation": "background_document_processing",
-                        "document_id": document_id,
-                        "document_filename": document.filename if document else None,
-                        "business_client_id": business_client_id,
-                        "workspace_id": workspace_id,
-                    },
-                    additional_info={
-                        "chunk_words": chunk_words,
-                        "overlap_words": overlap_words,
-                        "is_critical": True,
-                    }
-                )
-            else:
-                crash_logger.log_error(
-                    exc, type(exc), exc.__traceback__,
-                    context={
-                        "operation": "background_document_processing",
-                        "document_id": document_id,
-                        "business_client_id": business_client_id,
-                        "workspace_id": workspace_id,
-                    },
-                    severity="ERROR"
-                )
-            
-            logger.error(
-                f"Error in background processing for document {document_id}: "
-                f"{type(exc).__name__}: {exc}",
-                exc_info=True
-            )
-            try:
-                # Try to update document status if we have it
-                if document:
-                    # Refresh to get latest state
-                    try:
-                        await bg_session.refresh(document)
-                    except Exception:
-                        pass  # Document might have been deleted
+                # Add timeout to prevent hanging (30 minutes max)
+                try:
+                    service = RagIngestService()
+                    await asyncio.wait_for(
+                        service.ingest_document(bg_session, document, config, chunk_words, overlap_words),
+                        timeout=1800.0  # 30 minutes
+                    )
+                    logger.info(f"Processing completed successfully: document_id={document_id}")
+                except asyncio.TimeoutError:
+                    logger.error(f"Processing timed out for document {document_id}")
+                    # Refresh document to get latest state
+                    await bg_session.refresh(document)
+                    document.status = "failed"
+                    document.meta_json = "Processing timed out after 30 minutes"
+                    await bg_session.commit()
+                except MemoryError as mem_err:
+                    # Log crash with detailed context
+                    crash_logger.log_crash(
+                        mem_err, type(mem_err), mem_err.__traceback__,
+                        context={
+                            "operation": "document_processing",
+                            "document_id": document_id,
+                            "document_filename": document.filename if document else None,
+                            "business_client_id": business_client_id,
+                            "workspace_id": workspace_id,
+                        },
+                        additional_info={
+                            "chunk_words": chunk_words,
+                            "overlap_words": overlap_words,
+                        }
+                    )
                     
-                    error_msg = str(exc)[:500]  # Limit error message length
+                    logger.error(f"Out of memory error for document {document_id}: {mem_err}")
+                    # Refresh document to get latest state
+                    await bg_session.refresh(document)
                     document.status = "failed"
                     document.meta_json = (
-                        f"{type(exc).__name__}: {error_msg}. "
-                        f"Check logs/crashes/ for detailed {'crash' if is_critical else 'error'} report."
+                        f"Out of memory: PDF may be too large or complex. "
+                        f"Try splitting the document or increasing container memory. "
+                        f"Check logs/crashes/ for detailed crash report."
                     )
                     await bg_session.commit()
-                    logger.info(f"Updated document {document_id} status to failed: {error_msg}")
-            except Exception as commit_exc:
-                logger.error(f"Failed to update document status: {commit_exc}")
-                # Try one more time with a new session if possible
+                except KeyboardInterrupt:
+                    # Handle graceful shutdown
+                    logger.warning(f"Processing interrupted for document {document_id}")
+                    await bg_session.refresh(document)
+                    document.status = "failed"
+                    document.meta_json = "Processing interrupted"
+                    await bg_session.commit()
+                    raise
+                except Exception:
+                    # Re-raise to be caught by outer handler
+                    raise
+                
+            except Exception as exc:
+                # Determine if this is a critical crash
+                is_critical = isinstance(exc, (MemoryError, SystemError, KeyboardInterrupt)) or \
+                              "out of memory" in str(exc).lower() or \
+                              "killed" in str(exc).lower()
+                
+                # Log with crash logger
+                if is_critical:
+                    crash_logger.log_crash(
+                        exc, type(exc), exc.__traceback__,
+                        context={
+                            "operation": "document_processing",
+                            "document_id": document_id,
+                            "document_filename": document.filename if document else None,
+                            "business_client_id": business_client_id,
+                            "workspace_id": workspace_id,
+                        },
+                        additional_info={
+                            "chunk_words": chunk_words,
+                            "overlap_words": overlap_words,
+                            "is_critical": True,
+                        }
+                    )
+                else:
+                    crash_logger.log_error(
+                        exc, type(exc), exc.__traceback__,
+                        context={
+                            "operation": "document_processing",
+                            "document_id": document_id,
+                            "business_client_id": business_client_id,
+                            "workspace_id": workspace_id,
+                        },
+                        severity="ERROR"
+                    )
+                
+                logger.error(
+                    f"Error in processing for document {document_id}: "
+                    f"{type(exc).__name__}: {exc}",
+                    exc_info=True
+                )
                 try:
-                    async with AsyncSessionLocal() as recovery_session:
-                        recovery_doc = (
-                            await recovery_session.execute(
-                                select(Document).where(Document.id == doc_uuid)
-                            )
-                        ).scalar_one_or_none()
-                        if recovery_doc:
-                            recovery_doc.status = "failed"
-                            recovery_doc.meta_json = (
-                                f"Processing failed: {type(exc).__name__}. "
-                                f"Check logs/crashes/ for details."
-                            )
-                            await recovery_session.commit()
-                            logger.info(f"Recovered document {document_id} status via recovery session")
-                except Exception as recovery_exc:
-                    logger.error(f"Failed to recover document status: {recovery_exc}")
+                    # Try to update document status if we have it
+                    if document:
+                        # Refresh to get latest state
+                        try:
+                            await bg_session.refresh(document)
+                        except Exception:
+                            pass  # Document might have been deleted
+                        
+                        error_msg = str(exc)[:500]  # Limit error message length
+                        document.status = "failed"
+                        document.meta_json = (
+                            f"{type(exc).__name__}: {error_msg}. "
+                            f"Check logs/crashes/ for detailed {'crash' if is_critical else 'error'} report."
+                        )
+                        await bg_session.commit()
+                        logger.info(f"Updated document {document_id} status to failed: {error_msg}")
+                except Exception as commit_exc:
+                    logger.error(f"Failed to update document status: {commit_exc}")
+                    # Try one more time with a new session if possible
+                    try:
+                        async with AsyncSessionLocal() as recovery_session:
+                            recovery_doc = (
+                                await recovery_session.execute(
+                                    select(Document).where(Document.id == doc_uuid)
+                                )
+                            ).scalar_one_or_none()
+                            if recovery_doc:
+                                recovery_doc.status = "failed"
+                                recovery_doc.meta_json = (
+                                    f"Processing failed: {type(exc).__name__}. "
+                                    f"Check logs/crashes/ for details."
+                                )
+                                await recovery_session.commit()
+                                logger.info(f"Recovered document {document_id} status via recovery session")
+                    except Exception as recovery_exc:
+                        logger.error(f"Failed to recover document status: {recovery_exc}")
 
 
 @router.post("/documents/upload", response_model=DocumentUploadResponse)
@@ -323,27 +329,43 @@ async def upload_document(
             )
         ).scalar_one()
         
-        # ALWAYS use background processing for better performance and non-blocking requests
-        # Even small files can take time due to embedding API calls and database writes
+        settings = get_settings()
         file_size_kb = file_size / 1024
         estimated_pages = max(1, int(file_size_kb / 50))
         
-        logger.info(f"File detected ({file_size_kb:.1f}KB, ~{estimated_pages} pages), using background processing for non-blocking upload")
-        try:
-            background_tasks.add_task(
-                _process_document_background,
+        if settings.rag_background_ingest:
+            logger.info(
+                f"File detected ({file_size_kb:.1f}KB, ~{estimated_pages} pages), "
+                "using background processing for non-blocking upload"
+            )
+            try:
+                background_tasks.add_task(
+                    _process_document_background,
+                    str(document.id),
+                    business_client_id,
+                    workspace_id,
+                    chunk_words,
+                    overlap_words,
+                )
+                logger.info(f"Background task added for document {document.id}")
+            except Exception as task_error:
+                logger.error(f"Failed to add background task: {task_error}", exc_info=True)
+                # If background task fails, still return success but log the error
+                # The document will remain in "processing" status and can be retried
+                logger.warning(f"Background task setup failed, document {document.id} will remain in processing status")
+        else:
+            logger.info(
+                f"File detected ({file_size_kb:.1f}KB, ~{estimated_pages} pages), "
+                "processing synchronously to avoid background resource contention"
+            )
+            await _process_document_background(
                 str(document.id),
                 business_client_id,
                 workspace_id,
                 chunk_words,
                 overlap_words,
+                delay_before_start=False,
             )
-            logger.info(f"Background task added for document {document.id}")
-        except Exception as task_error:
-            logger.error(f"Failed to add background task: {task_error}", exc_info=True)
-            # If background task fails, still return success but log the error
-            # The document will remain in "processing" status and can be retried
-            logger.warning(f"Background task setup failed, document {document.id} will remain in processing status")
         
         # Return immediately with processing status (non-blocking)
         return DocumentUploadResponse(

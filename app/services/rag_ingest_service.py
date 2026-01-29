@@ -148,6 +148,32 @@ class RagIngestService:
             return False
         return True
 
+    def _log_resource_snapshot(self, step: str, context: dict | None = None) -> None:
+        """Log memory snapshot, including child process RSS, for debugging leaks."""
+        if not HAS_PSUTIL:
+            return
+        try:
+            process = psutil.Process()
+            mem_info = process.memory_info()
+            children = process.children(recursive=True)
+            child_rss_mb = 0.0
+            for child in children:
+                try:
+                    if child.is_running():
+                        child_rss_mb += child.memory_info().rss / (1024 * 1024)
+                except Exception:
+                    continue
+            logger.info(
+                "Resource snapshot step=%s rss_mb=%.1f child_count=%s child_rss_mb=%.1f context=%s",
+                step,
+                mem_info.rss / (1024 * 1024),
+                len(children),
+                child_rss_mb,
+                context or {},
+            )
+        except Exception as exc:
+            logger.debug("Failed to log resource snapshot: %s", exc)
+
     def _validate_file_size(self, file_path: Path) -> None:
         """Validate file size before processing."""
         file_size = file_path.stat().st_size
@@ -399,6 +425,7 @@ class RagIngestService:
         )
         logger.info("[PDF] Memory-bounded page-by-page ingestion started")
         crash_logger.write_progress("ingest_pdf_start", {"document_id": str(document.id)})
+        self._log_resource_snapshot("ingest_pdf_start", {"document_id": str(document.id)})
         sys.stdout.flush()
         sys.stderr.flush()
         
@@ -415,6 +442,10 @@ class RagIngestService:
                         MAX_PAGE_TEXT_CHARS,
                     )
                     page_text = page_text[:MAX_PAGE_TEXT_CHARS]
+                self._log_resource_snapshot(
+                    "after_page_extract",
+                    {"page": page_number, "document_id": str(document.id)},
+                )
                 
                 # Chunk this page's text only (no accumulation)
                 page_chunks = self._chunk_text(page_text, chunk_words, overlap_words)
