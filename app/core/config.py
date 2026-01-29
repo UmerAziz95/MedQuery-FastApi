@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     vector_dimension: int = 1536
 
     file_storage_path: str = "./storage"
+    rag_background_ingest: bool = False
 
 
 class EmbeddingModelInfo(BaseModel):
