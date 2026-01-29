@@ -59,6 +59,8 @@ USE_PYPDF_FOR_PDF = False
 USE_SUBPROCESS_FOR_PDF_PAGE = sys.platform == "linux"
 SUBPROCESS_PAGE_MEMORY_MB = 768  # per-page extraction subprocess limit
 SUBPROCESS_COUNT_MEMORY_MB = 256  # page-count subprocess limit
+# Guardrails against pathological extraction output (e.g., PDF bombs)
+MAX_PAGE_TEXT_CHARS = 200_000
 
 
 def _get_pdf_page_count_worker(path: str, result_queue: multiprocessing.Queue, use_pymupdf: bool) -> None:
@@ -167,8 +169,9 @@ class RagIngestService:
         if USE_SUBPROCESS_FOR_PDF_PAGE and (HAS_PYMUPDF or HAS_PYPDF):
             # Subprocess path: one bad page OOMs the child, not the API (Linux/Docker only)
             path_str = str(file_path)
-            count_queue = multiprocessing.Queue()
-            count_proc = multiprocessing.Process(
+            ctx = multiprocessing.get_context("spawn")
+            count_queue = ctx.Queue()
+            count_proc = ctx.Process(
                 target=_get_pdf_page_count_worker,
                 args=(path_str, count_queue, use_pymupdf),
             )
@@ -189,8 +192,8 @@ class RagIngestService:
                     for i in range(page_count):
                         crash_logger.write_progress("before_page_extract", {"page": i + 1})
                         sys.stdout.flush()
-                        q = multiprocessing.Queue()
-                        p = multiprocessing.Process(
+                        q = ctx.Queue()
+                        p = ctx.Process(
                             target=_extract_pdf_page_worker,
                             args=(path_str, i, q, use_pymupdf),
                         )
@@ -209,10 +212,14 @@ class RagIngestService:
                             page_text = ""
                             if p.exitcode in (137, -9):
                                 logger.warning(f"Page {i + 1} extraction OOM-killed (exit {p.exitcode}), skipping page")
+                        q.close()
+                        q.join_thread()
                         crash_logger.write_progress("after_page_extract", {"page": i + 1})
                         sys.stdout.flush()
                         yield i + 1, page_text
                     return
+            count_queue.close()
+            count_queue.join_thread()
         if USE_PYPDF_FOR_PDF or not HAS_PYMUPDF:
             if not HAS_PYPDF:
                 raise RuntimeError("pypdf is required for PDF ingestion but is not installed")
@@ -400,6 +407,14 @@ class RagIngestService:
                 page_count = page_number
                 if not page_text or not page_text.strip():
                     continue
+                if len(page_text) > MAX_PAGE_TEXT_CHARS:
+                    logger.warning(
+                        "Page %s text length %s exceeds limit %s, truncating to protect memory",
+                        page_number,
+                        len(page_text),
+                        MAX_PAGE_TEXT_CHARS,
+                    )
+                    page_text = page_text[:MAX_PAGE_TEXT_CHARS]
                 
                 # Chunk this page's text only (no accumulation)
                 page_chunks = self._chunk_text(page_text, chunk_words, overlap_words)
