@@ -35,6 +35,7 @@ try:
 except ImportError:
     HAS_PYPDF = False
 from sqlalchemy import delete
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -58,6 +59,8 @@ USE_PYPDF_FOR_PDF = False
 USE_SUBPROCESS_FOR_PDF_PAGE = sys.platform == "linux"
 SUBPROCESS_PAGE_MEMORY_MB = 768  # per-page extraction subprocess limit
 SUBPROCESS_COUNT_MEMORY_MB = 256  # page-count subprocess limit
+# Guardrails against pathological extraction output (e.g., PDF bombs)
+MAX_PAGE_TEXT_CHARS = 200_000
 
 
 def _get_pdf_page_count_worker(path: str, result_queue: multiprocessing.Queue, use_pymupdf: bool) -> None:
@@ -166,13 +169,18 @@ class RagIngestService:
         if USE_SUBPROCESS_FOR_PDF_PAGE and (HAS_PYMUPDF or HAS_PYPDF):
             # Subprocess path: one bad page OOMs the child, not the API (Linux/Docker only)
             path_str = str(file_path)
-            count_queue = multiprocessing.Queue()
-            count_proc = multiprocessing.Process(
+            ctx = multiprocessing.get_context("spawn")
+            count_queue = ctx.Queue()
+            count_proc = ctx.Process(
                 target=_get_pdf_page_count_worker,
                 args=(path_str, count_queue, use_pymupdf),
             )
             count_proc.start()
             count_proc.join(timeout=30)
+            if count_proc.is_alive():
+                logger.warning("Subprocess page count timed out; terminating child process")
+                count_proc.terminate()
+                count_proc.join(timeout=5)
             if count_proc.exitcode != 0:
                 logger.warning("Subprocess page count failed, falling back to in-process PDF iteration")
             else:
@@ -184,13 +192,17 @@ class RagIngestService:
                     for i in range(page_count):
                         crash_logger.write_progress("before_page_extract", {"page": i + 1})
                         sys.stdout.flush()
-                        q = multiprocessing.Queue()
-                        p = multiprocessing.Process(
+                        q = ctx.Queue()
+                        p = ctx.Process(
                             target=_extract_pdf_page_worker,
                             args=(path_str, i, q, use_pymupdf),
                         )
                         p.start()
                         p.join(timeout=60)
+                        if p.is_alive():
+                            logger.warning(f"Page {i + 1} extraction timed out; terminating child process")
+                            p.terminate()
+                            p.join(timeout=5)
                         if p.exitcode == 0:
                             try:
                                 page_text = q.get_nowait() or ""
@@ -200,10 +212,14 @@ class RagIngestService:
                             page_text = ""
                             if p.exitcode in (137, -9):
                                 logger.warning(f"Page {i + 1} extraction OOM-killed (exit {p.exitcode}), skipping page")
+                        q.close()
+                        q.join_thread()
                         crash_logger.write_progress("after_page_extract", {"page": i + 1})
                         sys.stdout.flush()
                         yield i + 1, page_text
                     return
+            count_queue.close()
+            count_queue.join_thread()
         if USE_PYPDF_FOR_PDF or not HAS_PYMUPDF:
             if not HAS_PYPDF:
                 raise RuntimeError("pypdf is required for PDF ingestion but is not installed")
@@ -344,7 +360,13 @@ class RagIngestService:
     async def _update_document_status(self, session: AsyncSession, document: Document, status: str, message: str) -> None:
         """Helper to update document status with error handling."""
         try:
-            await session.refresh(document)
+            try:
+                await session.refresh(document)
+            except (InvalidRequestError, AttributeError):
+                document = await session.get(Document, document.id)
+                if not document:
+                    logger.error("Document not found while updating status")
+                    return
             document.status = status
             document.meta_json = message[:1000]  # Limit message length
             await session.commit()
@@ -385,6 +407,14 @@ class RagIngestService:
                 page_count = page_number
                 if not page_text or not page_text.strip():
                     continue
+                if len(page_text) > MAX_PAGE_TEXT_CHARS:
+                    logger.warning(
+                        "Page %s text length %s exceeds limit %s, truncating to protect memory",
+                        page_number,
+                        len(page_text),
+                        MAX_PAGE_TEXT_CHARS,
+                    )
+                    page_text = page_text[:MAX_PAGE_TEXT_CHARS]
                 
                 # Chunk this page's text only (no accumulation)
                 page_chunks = self._chunk_text(page_text, chunk_words, overlap_words)
@@ -433,6 +463,7 @@ class RagIngestService:
                     ]
                     session.add_all(chunk_objects)
                     await session.commit()
+                    session.expunge_all()
                     new_total = total_chunks + len(chunk_objects)
                     crash_logger.write_progress("after_commit", {"page": page_count, "total_chunks": new_total})
                     sys.stdout.flush()
@@ -471,7 +502,12 @@ class RagIngestService:
                 logger.warning(f"[PDF] Document {document.id} produced no chunks")
                 return
             
-            await session.refresh(document)
+            try:
+                await session.refresh(document)
+            except (InvalidRequestError, AttributeError):
+                document = await session.get(Document, document.id)
+                if not document:
+                    raise RuntimeError("Document not found for final status update")
             document.status = "indexed"
             document.indexed_at = datetime.utcnow()
             document.meta_json = (
@@ -740,6 +776,7 @@ class RagIngestService:
                 session.add_all(chunk_objects)
                 logger.info(f"[STEP 4] Chunks added to session, committing transaction...")
                 await session.commit()
+                session.expunge_all()
                 
                 insert_time = time.time() - insert_start
                 step_info["insert_completed"] = True
@@ -788,7 +825,12 @@ class RagIngestService:
                 f"Embed: {embedding_time:.2f}s, Insert: {insert_time:.2f}s)"
             )
 
-            await session.refresh(document)
+            try:
+                await session.refresh(document)
+            except (InvalidRequestError, AttributeError):
+                document = await session.get(Document, document.id)
+                if not document:
+                    raise RuntimeError("Document not found for final status update")
             document.status = "indexed"
             document.indexed_at = datetime.utcnow()
             document.meta_json = (
@@ -862,7 +904,12 @@ class RagIngestService:
                 exc_info=True
             )
             try:
-                await session.refresh(document)
+                try:
+                    await session.refresh(document)
+                except (InvalidRequestError, AttributeError):
+                    document = await session.get(Document, document.id)
+                    if not document:
+                        raise
                 if document.status == "processing":
                     document.status = "failed"
                     document.meta_json = (
