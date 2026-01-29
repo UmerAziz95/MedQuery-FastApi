@@ -1,0 +1,2 @@
+# Keeps logs/crashes in git so host has the folder before container runs.
+# API writes ingest_progress.log and crash_*.log here (Docker: ./logs:/app/logs, CRASH_LOG_DIR=/app/logs/crashes).

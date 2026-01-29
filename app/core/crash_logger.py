@@ -21,9 +21,23 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Directory for crash logs
-CRASH_LOG_DIR = Path("logs/crashes")
-CRASH_LOG_DIR.mkdir(parents=True, exist_ok=True)
+# Directory for crash logs (use /app/logs/crashes in Docker so volume mount works)
+CRASH_LOG_DIR = Path(os.environ.get("CRASH_LOG_DIR", "logs/crashes"))
+try:
+    CRASH_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    # Write one line at import so a file exists even if process is OOM-killed before lifespan
+    _progress_log = CRASH_LOG_DIR / "ingest_progress.log"
+    with open(_progress_log, "a", encoding="utf-8") as _f:
+        _f.write(f"[{datetime.utcnow().isoformat()}] step=module_loaded pid={os.getpid()}\n")
+        _f.flush()
+        try:
+            os.fsync(_f.fileno())
+        except Exception:
+            pass
+except Exception as _e:
+    # Don't fail import; logging not configured yet
+    import warnings
+    warnings.warn(f"Crash log dir not ready: {_e}", UserWarning, stacklevel=0)
 
 
 class CrashLogger:
@@ -259,6 +273,35 @@ class CrashLogger:
                     f.write(f"  Context: {context}\n")
         except Exception as e:
             logger.error(f"Failed to write memory log: {e}")
+
+    def write_progress(self, step: str, context: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Write a progress line to ingest_progress.log and flush.
+        Use this before/after heavy operations so that when OOM kills the process (exit 137),
+        the last written step is visible in logs/crashes on the host.
+        """
+        progress_log = self.log_dir / "ingest_progress.log"
+        try:
+            info = self.get_system_info()
+            mem_mb = info.get("memory_rss_mb")
+            mem_pct = info.get("memory_percent")
+            line = (
+                f"[{datetime.utcnow().isoformat()}] step={step} "
+                f"memory_rss_mb={mem_mb} memory_percent={mem_pct}"
+            )
+            if context:
+                line += " " + " ".join(f"{k}={v}" for k, v in context.items())
+            line += "\n"
+            with open(progress_log, "a", encoding="utf-8") as f:
+                f.write(line)
+                f.flush()
+                try:
+                    os.fsync(f.fileno())  # Force write to disk (visible on host volume)
+                except Exception:
+                    pass
+            logger.info(f"Progress: {step} (memory: {mem_mb}MB)")
+        except Exception as e:
+            logger.warning(f"Failed to write progress log: {e}")
 
 
 # Global instance

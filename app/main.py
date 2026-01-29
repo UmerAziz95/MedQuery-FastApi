@@ -1,4 +1,5 @@
 import logging
+import multiprocessing
 import signal
 import sys
 import traceback
@@ -64,6 +65,17 @@ async def lifespan(_: FastAPI):
         # Note: SIGKILL cannot be caught
     
     logger.info("Application starting up...")
+    # Use spawn for multiprocessing so PDF extraction subprocesses do not inherit parent memory (avoids 4GB spike)
+    try:
+        multiprocessing.set_start_method("spawn")
+    except RuntimeError:
+        pass  # already set (e.g. by uvicorn)
+    # Ensure crash/progress log dir exists (so ./logs/crashes appears on host volume)
+    try:
+        crash_logger.log_dir.mkdir(parents=True, exist_ok=True)
+        crash_logger.write_progress("app_started", {"event": "startup"})
+    except Exception as e:
+        logger.warning(f"Could not init log dir: {e}")
     await seed_initial_admin()
     logger.info("Application startup complete")
     yield

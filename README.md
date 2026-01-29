@@ -67,6 +67,12 @@ docker compose exec api alembic upgrade head
 ### 4) Open the UI
 Visit `http://localhost:8000/ui` to use the testing console (same endpoints consumed by third parties).
 
+### 5) Docker memory (document ingestion)
+The API container is limited to **4GB** memory; PDFs are processed **page-by-page** with small embedding batches so usage stays under the limit. PDF extraction uses **PyMuPDF** by default (pypdf can spike to several GB on small files that contain inline images or large content streams). On **Linux (Docker)**, each page is extracted in a **subprocess with a 768MB memory limit** so one bad page cannot OOM the API; if a page hits the limit it is skipped and ingestion continues. If you still see crashes:
+- In Docker Desktop: **Settings → Resources** and increase **Memory** (e.g. 8GB) so the 4GB container limit can be used.
+- **Exit code 137** = out-of-memory (OOM) kill; the process is killed before Python can write a crash file, so **no `crash_*.log` is created**. The **last line** of **`./logs/crashes/ingest_progress.log`** shows the last step and memory before the kill. The same progress lines are also in **`docker compose logs api`**.
+- Full crash reports (for caught exceptions, not OOM) are in **`./logs/crashes/crash_*.log`**. The repo includes **`logs/crashes/`** so the folder exists on the host; the API writes to it via volume **`./logs:/app/logs`** and env **`CRASH_LOG_DIR=/app/logs/crashes`**. If no log files appear, ensure the API container is starting (e.g. `docker compose logs api`) and that the volume mount is correct.
+
 ## API Walkthrough
 
 ### Bootstrap a super admin
