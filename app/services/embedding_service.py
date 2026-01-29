@@ -111,6 +111,7 @@ class EmbeddingService:
                 response = await client.post("/embeddings", json=payload, headers=headers)
                 response.raise_for_status()
                 data = response.json()
+                logger.info("Embedding batch complete: batch_size=%s response_count=%s", len(texts), len(data.get("data", [])))
                 return [item["embedding"] for item in data["data"]]
             except httpx.TimeoutException:
                 logger.error(f"Timeout embedding batch of {len(texts)} texts")

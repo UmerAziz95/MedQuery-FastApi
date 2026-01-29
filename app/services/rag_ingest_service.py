@@ -494,6 +494,7 @@ class RagIngestService:
                         "page": page_number,
                         "document_id": str(document.id),
                         "page_chunks": len(page_chunks),
+                        "chunk_sizes_sample": [len(c) for c in page_chunks[:3]],
                     },
                 )
                 del page_text
@@ -521,7 +522,10 @@ class RagIngestService:
                     batch_embeddings = await self.embedding_service.embed_texts(
                         batch, config.embedding_model, batch_size=len(batch)
                     )
-                    crash_logger.write_progress("after_embed_batch", {"page": page_count})
+                    crash_logger.write_progress(
+                        "after_embed_batch",
+                        {"page": page_count, "embedding_count": len(batch_embeddings)},
+                    )
                     sys.stdout.flush()
                     if len(batch_embeddings) != len(batch):
                         raise RuntimeError(f"Embedding count mismatch: {len(batch_embeddings)} vs {len(batch)}")
@@ -791,6 +795,7 @@ class RagIngestService:
                     {
                         "document_id": str(document.id),
                         "chunk_count": len(all_chunks),
+                        "chunk_sizes_sample": [len(c) for c in all_chunks[:3]],
                         "memory_gb": f"{used_gb:.2f}",
                     },
                 )
