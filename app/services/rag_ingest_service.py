@@ -35,6 +35,7 @@ try:
 except ImportError:
     HAS_PYPDF = False
 from sqlalchemy import delete
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -58,6 +59,8 @@ USE_PYPDF_FOR_PDF = False
 USE_SUBPROCESS_FOR_PDF_PAGE = sys.platform == "linux"
 SUBPROCESS_PAGE_MEMORY_MB = 768  # per-page extraction subprocess limit
 SUBPROCESS_COUNT_MEMORY_MB = 256  # page-count subprocess limit
+# Guardrails against pathological extraction output (e.g., PDF bombs)
+MAX_PAGE_TEXT_CHARS = 200_000
 
 
 def _get_pdf_page_count_worker(path: str, result_queue: multiprocessing.Queue, use_pymupdf: bool) -> None:
@@ -145,6 +148,32 @@ class RagIngestService:
             return False
         return True
 
+    def _log_resource_snapshot(self, step: str, context: dict | None = None) -> None:
+        """Log memory snapshot, including child process RSS, for debugging leaks."""
+        if not HAS_PSUTIL:
+            return
+        try:
+            process = psutil.Process()
+            mem_info = process.memory_info()
+            children = process.children(recursive=True)
+            child_rss_mb = 0.0
+            for child in children:
+                try:
+                    if child.is_running():
+                        child_rss_mb += child.memory_info().rss / (1024 * 1024)
+                except Exception:
+                    continue
+            logger.info(
+                "Resource snapshot step=%s rss_mb=%.1f child_count=%s child_rss_mb=%.1f context=%s",
+                step,
+                mem_info.rss / (1024 * 1024),
+                len(children),
+                child_rss_mb,
+                context or {},
+            )
+        except Exception as exc:
+            logger.debug("Failed to log resource snapshot: %s", exc)
+
     def _validate_file_size(self, file_path: Path) -> None:
         """Validate file size before processing."""
         file_size = file_path.stat().st_size
@@ -155,6 +184,10 @@ class RagIngestService:
                 f"Please split the document into smaller files."
             )
         logger.info(f"File size validated: {file_size / 1024:.1f}KB")
+        crash_logger.write_progress(
+            "file_size_validated",
+            {"file_path": str(file_path), "file_size_bytes": file_size},
+        )
 
     def _iter_pdf_pages(self, file_path: Path):
         """
@@ -166,13 +199,18 @@ class RagIngestService:
         if USE_SUBPROCESS_FOR_PDF_PAGE and (HAS_PYMUPDF or HAS_PYPDF):
             # Subprocess path: one bad page OOMs the child, not the API (Linux/Docker only)
             path_str = str(file_path)
-            count_queue = multiprocessing.Queue()
-            count_proc = multiprocessing.Process(
+            ctx = multiprocessing.get_context("spawn")
+            count_queue = ctx.Queue()
+            count_proc = ctx.Process(
                 target=_get_pdf_page_count_worker,
                 args=(path_str, count_queue, use_pymupdf),
             )
             count_proc.start()
             count_proc.join(timeout=30)
+            if count_proc.is_alive():
+                logger.warning("Subprocess page count timed out; terminating child process")
+                count_proc.terminate()
+                count_proc.join(timeout=5)
             if count_proc.exitcode != 0:
                 logger.warning("Subprocess page count failed, falling back to in-process PDF iteration")
             else:
@@ -184,13 +222,17 @@ class RagIngestService:
                     for i in range(page_count):
                         crash_logger.write_progress("before_page_extract", {"page": i + 1})
                         sys.stdout.flush()
-                        q = multiprocessing.Queue()
-                        p = multiprocessing.Process(
+                        q = ctx.Queue()
+                        p = ctx.Process(
                             target=_extract_pdf_page_worker,
                             args=(path_str, i, q, use_pymupdf),
                         )
                         p.start()
                         p.join(timeout=60)
+                        if p.is_alive():
+                            logger.warning(f"Page {i + 1} extraction timed out; terminating child process")
+                            p.terminate()
+                            p.join(timeout=5)
                         if p.exitcode == 0:
                             try:
                                 page_text = q.get_nowait() or ""
@@ -200,10 +242,14 @@ class RagIngestService:
                             page_text = ""
                             if p.exitcode in (137, -9):
                                 logger.warning(f"Page {i + 1} extraction OOM-killed (exit {p.exitcode}), skipping page")
+                        q.close()
+                        q.join_thread()
                         crash_logger.write_progress("after_page_extract", {"page": i + 1})
                         sys.stdout.flush()
                         yield i + 1, page_text
                     return
+            count_queue.close()
+            count_queue.join_thread()
         if USE_PYPDF_FOR_PDF or not HAS_PYMUPDF:
             if not HAS_PYPDF:
                 raise RuntimeError("pypdf is required for PDF ingestion but is not installed")
@@ -344,7 +390,13 @@ class RagIngestService:
     async def _update_document_status(self, session: AsyncSession, document: Document, status: str, message: str) -> None:
         """Helper to update document status with error handling."""
         try:
-            await session.refresh(document)
+            try:
+                await session.refresh(document)
+            except (InvalidRequestError, AttributeError):
+                document = await session.get(Document, document.id)
+                if not document:
+                    logger.error("Document not found while updating status")
+                    return
             document.status = status
             document.meta_json = message[:1000]  # Limit message length
             await session.commit()
@@ -377,6 +429,7 @@ class RagIngestService:
         )
         logger.info("[PDF] Memory-bounded page-by-page ingestion started")
         crash_logger.write_progress("ingest_pdf_start", {"document_id": str(document.id)})
+        self._log_resource_snapshot("ingest_pdf_start", {"document_id": str(document.id)})
         sys.stdout.flush()
         sys.stderr.flush()
         
@@ -384,10 +437,46 @@ class RagIngestService:
             for page_number, page_text in self._iter_pdf_pages(file_path):
                 page_count = page_number
                 if not page_text or not page_text.strip():
+                    crash_logger.write_progress(
+                        "page_empty",
+                        {"page": page_number, "document_id": str(document.id)},
+                    )
                     continue
+                if len(page_text) > MAX_PAGE_TEXT_CHARS:
+                    logger.warning(
+                        "Page %s text length %s exceeds limit %s, truncating to protect memory",
+                        page_number,
+                        len(page_text),
+                        MAX_PAGE_TEXT_CHARS,
+                    )
+                    page_text = page_text[:MAX_PAGE_TEXT_CHARS]
+                crash_logger.write_progress(
+                    "page_text_ready",
+                    {
+                        "page": page_number,
+                        "document_id": str(document.id),
+                        "page_text_chars": len(page_text),
+                    },
+                )
+                self._log_resource_snapshot(
+                    "after_page_extract",
+                    {"page": page_number, "document_id": str(document.id)},
+                )
                 
                 # Chunk this page's text only (no accumulation)
+                crash_logger.write_progress(
+                    "before_chunk_page",
+                    {"page": page_number, "document_id": str(document.id)},
+                )
                 page_chunks = self._chunk_text(page_text, chunk_words, overlap_words)
+                crash_logger.write_progress(
+                    "after_chunk_page",
+                    {
+                        "page": page_number,
+                        "document_id": str(document.id),
+                        "page_chunks": len(page_chunks),
+                    },
+                )
                 del page_text
                 gc.collect()
                 
@@ -419,6 +508,10 @@ class RagIngestService:
                         raise RuntimeError(f"Embedding count mismatch: {len(batch_embeddings)} vs {len(batch)}")
                     
                     # Build chunk objects and insert
+                    crash_logger.write_progress(
+                        "before_chunk_insert",
+                        {"page": page_count, "batch_size": len(batch)},
+                    )
                     chunk_objects = [
                         DocumentChunk(
                             business_id=document.business_id,
@@ -432,7 +525,12 @@ class RagIngestService:
                         for j, (chunk, emb) in enumerate(zip(batch, batch_embeddings))
                     ]
                     session.add_all(chunk_objects)
+                    crash_logger.write_progress(
+                        "before_commit",
+                        {"page": page_count, "batch_size": len(chunk_objects)},
+                    )
                     await session.commit()
+                    session.expunge_all()
                     new_total = total_chunks + len(chunk_objects)
                     crash_logger.write_progress("after_commit", {"page": page_count, "total_chunks": new_total})
                     sys.stdout.flush()
@@ -460,6 +558,10 @@ class RagIngestService:
                         f"Page {page_count}: {total_chunks} chunks stored. Memory: {used_gb:.2f}GB"
                     )
                     logger.info(f"[PDF] Page {page_count}: {total_chunks} chunks. Memory: {used_gb:.2f}GB")
+                crash_logger.write_progress(
+                    "page_complete",
+                    {"page": page_count, "total_chunks": total_chunks},
+                )
             
             total_time = time.time() - total_start
             if total_chunks == 0:
@@ -471,7 +573,16 @@ class RagIngestService:
                 logger.warning(f"[PDF] Document {document.id} produced no chunks")
                 return
             
-            await session.refresh(document)
+            crash_logger.write_progress(
+                "pdf_ingest_complete",
+                {"document_id": str(document.id), "total_chunks": total_chunks, "page_count": page_count},
+            )
+            try:
+                await session.refresh(document)
+            except (InvalidRequestError, AttributeError):
+                document = await session.get(Document, document.id)
+                if not document:
+                    raise RuntimeError("Document not found for final status update")
             document.status = "indexed"
             document.indexed_at = datetime.utcnow()
             document.meta_json = (
@@ -541,6 +652,10 @@ class RagIngestService:
             
             step_info["file_exists"] = True
             step_info["file_path"] = str(file_path)
+            crash_logger.write_progress(
+                "file_verified",
+                {"document_id": str(document.id), "file_path": str(file_path)},
+            )
 
             # Validate file size upfront
             self._validate_file_size(file_path)
@@ -560,6 +675,10 @@ class RagIngestService:
             step_info["overlap_words"] = overlap_words
             
             logger.info(f"[STEP 0] Initialization complete. Memory: {used_gb:.2f}GB")
+            crash_logger.write_progress(
+                "init_complete",
+                {"document_id": str(document.id), "memory_gb": f"{used_gb:.2f}"},
+            )
 
             # PDF: use memory-bounded page-by-page ingestion to avoid OOM
             if document.file_type == "pdf":
@@ -573,6 +692,10 @@ class RagIngestService:
             # STEP 1: Extract all text synchronously (like ChromaDB)
             logger.info("[STEP 1] Extracting all text from document...")
             await self._update_document_status(session, document, "processing", "Step 1/4: Extracting text from document...")
+            crash_logger.write_progress(
+                "step1_extract_start",
+                {"document_id": str(document.id), "file_type": document.file_type},
+            )
             
             extraction_start = time.time()
             try:
@@ -587,6 +710,15 @@ class RagIngestService:
                 step_info["memory_after_extraction_gb"] = used_gb
                 
                 logger.info(f"[STEP 1] ✅ Text extraction completed: {len(full_text)} chars, {page_count} pages in {extraction_time:.2f}s. Memory: {used_gb:.2f}GB")
+                crash_logger.write_progress(
+                    "step1_extract_complete",
+                    {
+                        "document_id": str(document.id),
+                        "page_count": page_count,
+                        "text_chars": len(full_text),
+                        "memory_gb": f"{used_gb:.2f}",
+                    },
+                )
                 
                 if not self._check_memory_safe():
                     raise MemoryError(f"Memory exceeded after extraction: {used_gb:.2f}GB")
@@ -614,6 +746,10 @@ class RagIngestService:
             # STEP 2: Create all chunks synchronously (instant, like ChromaDB)
             logger.info("[STEP 2] Creating chunks from text...")
             await self._update_document_status(session, document, "processing", f"Step 2/4: Creating chunks from {page_count} pages...")
+            crash_logger.write_progress(
+                "step2_chunk_start",
+                {"document_id": str(document.id), "page_count": page_count},
+            )
             
             chunking_start = time.time()
             try:
@@ -627,6 +763,14 @@ class RagIngestService:
                 step_info["memory_after_chunking_gb"] = used_gb
                 
                 logger.info(f"[STEP 2] ✅ Chunking completed: {len(all_chunks)} chunks in {chunking_time:.3f}s. Memory: {used_gb:.2f}GB")
+                crash_logger.write_progress(
+                    "step2_chunk_complete",
+                    {
+                        "document_id": str(document.id),
+                        "chunk_count": len(all_chunks),
+                        "memory_gb": f"{used_gb:.2f}",
+                    },
+                )
                 
                 # Clear full_text from memory now that we have chunks
                 del full_text
@@ -666,6 +810,10 @@ class RagIngestService:
             # STEP 3: Generate ALL embeddings in batch (like ChromaDB)
             logger.info(f"[STEP 3] Generating embeddings for {len(all_chunks)} chunks in batch...")
             await self._update_document_status(session, document, "processing", f"Step 3/4: Generating embeddings for {len(all_chunks)} chunks...")
+            crash_logger.write_progress(
+                "step3_embed_start",
+                {"document_id": str(document.id), "chunk_count": len(all_chunks)},
+            )
             
             embedding_start = time.time()
             try:
@@ -685,6 +833,14 @@ class RagIngestService:
                 step_info["memory_after_embedding_gb"] = used_gb
                 
                 logger.info(f"[STEP 3] ✅ Embedding generation completed: {len(all_embeddings)} embeddings in {embedding_time:.2f}s. Memory: {used_gb:.2f}GB")
+                crash_logger.write_progress(
+                    "step3_embed_complete",
+                    {
+                        "document_id": str(document.id),
+                        "embedding_count": len(all_embeddings),
+                        "memory_gb": f"{used_gb:.2f}",
+                    },
+                )
 
                 if len(all_embeddings) != len(all_chunks):
                     raise RuntimeError(
@@ -717,6 +873,10 @@ class RagIngestService:
             # STEP 4: Insert ALL chunks in single batch transaction (like ChromaDB)
             logger.info(f"[STEP 4] Inserting {len(all_chunks)} chunks in single batch transaction...")
             await self._update_document_status(session, document, "processing", f"Step 4/4: Storing {len(all_chunks)} chunks in database...")
+            crash_logger.write_progress(
+                "step4_insert_start",
+                {"document_id": str(document.id), "chunk_count": len(all_chunks)},
+            )
             
             insert_start = time.time()
             try:
@@ -739,7 +899,12 @@ class RagIngestService:
                 # Single batch insert - like ChromaDB's collection.add()
                 session.add_all(chunk_objects)
                 logger.info(f"[STEP 4] Chunks added to session, committing transaction...")
+                crash_logger.write_progress(
+                    "step4_before_commit",
+                    {"document_id": str(document.id), "chunk_count": len(chunk_objects)},
+                )
                 await session.commit()
+                session.expunge_all()
                 
                 insert_time = time.time() - insert_start
                 step_info["insert_completed"] = True
@@ -750,6 +915,14 @@ class RagIngestService:
                 step_info["memory_after_insert_gb"] = used_gb
                 
                 logger.info(f"[STEP 4] ✅ Database insert completed: {len(chunk_objects)} chunks in {insert_time:.2f}s. Memory: {used_gb:.2f}GB")
+                crash_logger.write_progress(
+                    "step4_insert_complete",
+                    {
+                        "document_id": str(document.id),
+                        "chunks_inserted": len(chunk_objects),
+                        "memory_gb": f"{used_gb:.2f}",
+                    },
+                )
                 
             except Exception as e:
                 step_info["insert_failed"] = True
@@ -788,7 +961,12 @@ class RagIngestService:
                 f"Embed: {embedding_time:.2f}s, Insert: {insert_time:.2f}s)"
             )
 
-            await session.refresh(document)
+            try:
+                await session.refresh(document)
+            except (InvalidRequestError, AttributeError):
+                document = await session.get(Document, document.id)
+                if not document:
+                    raise RuntimeError("Document not found for final status update")
             document.status = "indexed"
             document.indexed_at = datetime.utcnow()
             document.meta_json = (
@@ -800,6 +978,10 @@ class RagIngestService:
             logger.info(
                 f"Document {document.id} successfully indexed. "
                 f"Total time: {total_time:.2f}s"
+            )
+            crash_logger.write_progress(
+                "ingest_document_complete",
+                {"document_id": str(document.id), "total_time_s": f"{total_time:.2f}"},
             )
                 
         except MemoryError as mem_error:
@@ -862,7 +1044,12 @@ class RagIngestService:
                 exc_info=True
             )
             try:
-                await session.refresh(document)
+                try:
+                    await session.refresh(document)
+                except (InvalidRequestError, AttributeError):
+                    document = await session.get(Document, document.id)
+                    if not document:
+                        raise
                 if document.status == "processing":
                     document.status = "failed"
                     document.meta_json = (

@@ -12,10 +12,9 @@ logger = logging.getLogger(__name__)
 class EmbeddingService:
     def __init__(self) -> None:
         self.settings = get_settings()
-        # OpenAI allows up to 2048 inputs per request
-        # Use larger batches for small files, smaller for reliability on large files
-        self.max_batch_size = 2048  # OpenAI's maximum
-        self.default_batch_size = 500  # Good balance for most files
+        # Keep batches small to avoid large response payloads and memory spikes.
+        self.max_batch_size = 128
+        self.default_batch_size = 32
 
     def get_dimension(self, model: str) -> int:
         return EMBEDDING_MODEL_DIMENSIONS.get(model, EMBEDDING_MODEL_DIMENSIONS[self.settings.default_embedding_model])
@@ -37,18 +36,21 @@ class EmbeddingService:
         
         texts_list = list(texts)
         total_texts = len(texts_list)
+        logger.info("Embedding request start: total_texts=%s model=%s", total_texts, model)
         
-        # Optimize batch size based on number of texts
+        # Optimize batch size based on number of texts, then clamp to safe limits.
         if batch_size is None:
             if total_texts <= 50:
-                # Very small files: send all at once (up to max)
+                # Very small files: still cap to safe max.
                 batch_size = min(total_texts, self.max_batch_size)
             elif total_texts <= 500:
-                # Small-medium files: use larger batches for speed
-                batch_size = min(500, self.max_batch_size)
+                # Small-medium files: keep modest to avoid memory spikes.
+                batch_size = min(64, self.max_batch_size)
             else:
-                # Large files: use default batch size for reliability
+                # Large files: keep default batch size for reliability
                 batch_size = self.default_batch_size
+        batch_size = max(1, min(batch_size, self.default_batch_size))
+        logger.info("Embedding batch_size selected=%s total_texts=%s", batch_size, total_texts)
         
         # If all texts fit in one batch, process immediately (fastest for small files)
         if total_texts <= batch_size:
