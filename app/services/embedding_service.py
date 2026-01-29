@@ -36,6 +36,7 @@ class EmbeddingService:
         
         texts_list = list(texts)
         total_texts = len(texts_list)
+        logger.info("Embedding request start: total_texts=%s model=%s", total_texts, model)
         
         # Optimize batch size based on number of texts, then clamp to safe limits.
         if batch_size is None:
@@ -49,6 +50,7 @@ class EmbeddingService:
                 # Large files: keep default batch size for reliability
                 batch_size = self.default_batch_size
         batch_size = max(1, min(batch_size, self.default_batch_size))
+        logger.info("Embedding batch_size selected=%s total_texts=%s", batch_size, total_texts)
         
         # If all texts fit in one batch, process immediately (fastest for small files)
         if total_texts <= batch_size:

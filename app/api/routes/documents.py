@@ -264,6 +264,14 @@ async def upload_document(
         f"workspace={workspace_id}, filename={file.filename}, "
         f"size={file.size if hasattr(file, 'size') else 'unknown'}"
     )
+    crash_logger.write_progress(
+        "upload_request_received",
+        {
+            "business_client_id": business_client_id,
+            "workspace_id": workspace_id,
+            "filename": file.filename or "",
+        },
+    )
     
     try:
         business, workspace = await _get_workspace(session, business_client_id, workspace_id)
@@ -307,6 +315,10 @@ async def upload_document(
                     )
                 buffer.write(chunk)
         logger.info(f"File stored successfully: {file.filename}, size: {file_size} bytes")
+        crash_logger.write_progress(
+            "upload_file_stored",
+            {"filename": file.filename, "file_size_bytes": file_size},
+        )
         
         # Create document record with "processing" status
         document = Document(
@@ -321,6 +333,10 @@ async def upload_document(
         await session.commit()
         await session.refresh(document)
         logger.info(f"Document record created: document_id={document.id}, status=processing")
+        crash_logger.write_progress(
+            "document_record_created",
+            {"document_id": str(document.id), "status": "processing"},
+        )
         
         # Get config for processing decision
         config = (
@@ -337,6 +353,10 @@ async def upload_document(
             logger.info(
                 f"File detected ({file_size_kb:.1f}KB, ~{estimated_pages} pages), "
                 "using background processing for non-blocking upload"
+            )
+            crash_logger.write_progress(
+                "ingest_dispatch_background",
+                {"document_id": str(document.id), "estimated_pages": estimated_pages},
             )
             try:
                 background_tasks.add_task(
@@ -357,6 +377,10 @@ async def upload_document(
             logger.info(
                 f"File detected ({file_size_kb:.1f}KB, ~{estimated_pages} pages), "
                 "processing synchronously to avoid background resource contention"
+            )
+            crash_logger.write_progress(
+                "ingest_dispatch_sync",
+                {"document_id": str(document.id), "estimated_pages": estimated_pages},
             )
             await _process_document_background(
                 str(document.id),
