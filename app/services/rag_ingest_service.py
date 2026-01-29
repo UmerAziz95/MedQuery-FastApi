@@ -7,6 +7,7 @@ Following ChromaDB pattern:
 3. Generate ALL embeddings in batch (single API call)
 4. Insert ALL chunks in single database transaction (fast)
 """
+import asyncio
 import gc
 import logging
 import multiprocessing
@@ -173,6 +174,24 @@ class RagIngestService:
             )
         except Exception as exc:
             logger.debug("Failed to log resource snapshot: %s", exc)
+
+    async def _memory_watchdog(
+        self,
+        stop_event: asyncio.Event,
+        document_id: str,
+        interval_s: float = 2.0,
+    ) -> None:
+        """Periodically log memory usage while ingestion runs."""
+        while not stop_event.is_set():
+            crash_logger.write_progress(
+                "memory_watchdog",
+                {"document_id": document_id, "interval_s": interval_s},
+            )
+            self._log_resource_snapshot("memory_watchdog", {"document_id": document_id})
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=interval_s)
+            except asyncio.TimeoutError:
+                continue
 
     def _validate_file_size(self, file_path: Path) -> None:
         """Validate file size before processing."""
@@ -641,6 +660,10 @@ class RagIngestService:
             f"filename={document.filename}, file_type={document.file_type}"
         )
 
+        watchdog_stop = asyncio.Event()
+        watchdog_task = asyncio.create_task(
+            self._memory_watchdog(watchdog_stop, str(document.id))
+        )
         try:
             # INITIALIZATION STEP
             logger.info("[STEP 0] Initialization and validation...")
@@ -1060,6 +1083,12 @@ class RagIngestService:
             except Exception as status_error:
                 logger.error(f"Failed to update document status: {status_error}")
             raise
+        finally:
+            watchdog_stop.set()
+            try:
+                await asyncio.wait_for(watchdog_task, timeout=5)
+            except asyncio.TimeoutError:
+                watchdog_task.cancel()
 
     async def reindex_document(self, session: AsyncSession, document: Document, config: WorkspaceConfig) -> None:
         await session.execute(delete(DocumentChunk).where(DocumentChunk.document_id == document.id))
