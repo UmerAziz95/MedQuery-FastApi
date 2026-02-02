@@ -29,8 +29,9 @@ services:
     environment:
       - PYTHONHASHSEED=0
       - MALLOC_ARENA_MAX=2
-      # So crash/progress logs go to mounted volume (visible on host)
+      # So crash/progress and ingestion logs go to mounted volume (visible on host)
       - CRASH_LOG_DIR=/app/logs/crashes
+      - INGESTION_LOG_DIR=/app/logs
 
 volumes:
   pgvector_data:

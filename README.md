@@ -71,7 +71,7 @@ Visit `http://localhost:8000/ui` to use the testing console (same endpoints cons
 The API container is limited to **4GB** memory; PDFs are processed **page-by-page** with small embedding batches so usage stays under the limit. PDF extraction uses **PyMuPDF** by default (pypdf can spike to several GB on small files that contain inline images or large content streams). On **Linux (Docker)**, each page is extracted in a **subprocess with a 768MB memory limit** so one bad page cannot OOM the API; if a page hits the limit it is skipped and ingestion continues. If you still see crashes:
 - In Docker Desktop: **Settings → Resources** and increase **Memory** (e.g. 8GB) so the 4GB container limit can be used.
 - **Exit code 137** = out-of-memory (OOM) kill; the process is killed before Python can write a crash file, so **no `crash_*.log` is created**. The **last line** of **`./logs/crashes/ingest_progress.log`** shows the last step and memory before the kill. The same progress lines are also in **`docker compose logs api`**.
-- Full crash reports (for caught exceptions, not OOM) are in **`./logs/crashes/crash_*.log`**. The repo includes **`logs/crashes/`** so the folder exists on the host; the API writes to it via volume **`./logs:/app/logs`** and env **`CRASH_LOG_DIR=/app/logs/crashes`**. If no log files appear, ensure the API container is starting (e.g. `docker compose logs api`) and that the volume mount is correct.
+- Full crash reports (for caught exceptions, not OOM) are in **`./logs/crashes/crash_*.log`**. **`./logs/ingestion.log`** contains a step-by-step log of every document upload (file size, extracted text preview, chunk counts, embedding batches, commits, memory at each step). See **`logs/README.md`** for the full log layout. The repo includes **`logs/crashes/`**; the API writes via volume **`./logs:/app/logs`** and **`CRASH_LOG_DIR`** / **`INGESTION_LOG_DIR`**. If no log files appear, ensure the API container is starting (e.g. `docker compose logs api`) and that the volume mount is correct.
 
 ## API Walkthrough
 
@@ -172,6 +172,19 @@ POST /api/chat/generate
 - Document deletion cascades to chunks.
 - All retrieval operations are filtered by `business_id` and `workspace_id`.
 - `VECTOR_DIMENSION` must match the embedding model dimension used in workspace configs.
+
+### Local embeddings (no OpenAI API)
+
+You can create embeddings **locally** so no API key or network call is needed:
+
+1. Install the optional dependency: `pip install -r requirements-local-embeddings.txt`. The default Docker image does **not** include `sentence-transformers` (it pulls PyTorch and can cause long/failing builds); use this file only when you need local embeddings.
+2. In `.env` set:
+   - `USE_LOCAL_EMBEDDINGS=true`
+   - `LOCAL_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2` (default; 384 dimensions)
+   - `VECTOR_DIMENSION=384` (must match the local model)
+3. If your database was created with 1536-dim vectors (OpenAI default), you must add a migration to alter `document_chunks.embedding` to 384 dimensions and re-ingest documents, or use a fresh database.
+
+Local embeddings avoid API cost and work offline; the model is loaded in memory (~100–400 MB depending on the model).
 
 
 ============================================================
@@ -290,5 +303,5 @@ Logs ALWAYS tell the truth
 
 ✅ Minimum Daily Workflow (MEMORIZE)
 docker compose up -d --build
-docker compose ps
-docker compose logs -f api
+docker compose ps   //logs
+docker compose logs -f api //logs

@@ -41,6 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.crash_logger import crash_logger
+from app.core.ingestion_logger import log_ingestion, text_preview
 from app.models import Document, DocumentChunk, WorkspaceConfig
 from app.services.embedding_service import EmbeddingService
 
@@ -238,6 +239,13 @@ class RagIngestService:
                 except Exception:
                     page_count = 0
                 if page_count > 0:
+                    log_ingestion(
+                        "PDF_OPEN",
+                        "PDF opened; page count obtained; next: extract each page",
+                        file_path=path_str,
+                        page_count=page_count,
+                        use_subprocess=True,
+                    )
                     for i in range(page_count):
                         crash_logger.write_progress("before_page_extract", {"page": i + 1})
                         sys.stdout.flush()
@@ -381,11 +389,19 @@ class RagIngestService:
         Create all chunks from text synchronously.
         Simple sliding window approach - instant operation.
         """
+        log_ingestion(
+            "_CHUNK_TEXT_ENTER",
+            "Inside _chunk_text; next: split and loop",
+            text_length=len(text) if text else 0,
+            chunk_words=chunk_words,
+            overlap_words=overlap_words,
+        )
         if overlap_words >= chunk_words:
             overlap_words = 0
         
-        words = text.split()
+        words = text.split() if text else []
         if not words:
+            log_ingestion("_CHUNK_TEXT_EXIT", "Exiting _chunk_text (no words)", num_chunks=0)
             return []
         
         chunks = []
@@ -393,6 +409,7 @@ class RagIngestService:
         total_words = len(words)
         
         while start < total_words:
+            current_start = start
             end = min(total_words, start + chunk_words)
             chunk = " ".join(words[start:end])
             if chunk.strip():
@@ -403,7 +420,18 @@ class RagIngestService:
                 start = 0
             if start >= total_words:
                 break
+            # Avoid infinite loop when chunk is shorter than overlap (e.g. 6 words, overlap 50)
+            if start <= current_start:
+                start = end
+            if start >= total_words:
+                break
         
+        log_ingestion(
+            "_CHUNK_TEXT_EXIT",
+            "Exiting _chunk_text; next: return to caller",
+            num_chunks=len(chunks),
+            total_words=total_words,
+        )
         return chunks
 
     async def _update_document_status(self, session: AsyncSession, document: Document, status: str, message: str) -> None:
@@ -446,6 +474,12 @@ class RagIngestService:
             session, document, "processing",
             "Processing PDF page-by-page (memory-bounded)..."
         )
+        log_ingestion(
+            "PDF_PAGE_BY_PAGE_START",
+            "PDF page-by-page loop started; next: open PDF and iterate pages",
+            document_id=str(document.id),
+            file_path=str(file_path),
+        )
         logger.info("[PDF] Memory-bounded page-by-page ingestion started")
         crash_logger.write_progress("ingest_pdf_start", {"document_id": str(document.id)})
         self._log_resource_snapshot("ingest_pdf_start", {"document_id": str(document.id)})
@@ -455,7 +489,18 @@ class RagIngestService:
         try:
             for page_number, page_text in self._iter_pdf_pages(file_path):
                 page_count = page_number
+                text_len = len(page_text or "")
+                text_preview_str = text_preview(page_text or "", 500)
+                log_ingestion(
+                    "PAGE_EXTRACT_END",
+                    f"Page {page_count} text extracted; next: chunk this page",
+                    document_id=str(document.id),
+                    page=page_count,
+                    text_length=text_len,
+                    text_preview=text_preview_str,
+                )
                 if not page_text or not page_text.strip():
+                    log_ingestion("PAGE_SKIP_EMPTY", f"Page {page_count} empty; skipping", document_id=str(document.id), page=page_count)
                     crash_logger.write_progress(
                         "page_empty",
                         {"page": page_number, "document_id": str(document.id)},
@@ -469,6 +514,13 @@ class RagIngestService:
                         MAX_PAGE_TEXT_CHARS,
                     )
                     page_text = page_text[:MAX_PAGE_TEXT_CHARS]
+                log_ingestion(
+                    "PAGE_TEXT_READY",
+                    "Page text validated; next: chunk (before_chunk_page)",
+                    document_id=str(document.id),
+                    page=page_count,
+                    page_text_chars=len(page_text),
+                )
                 crash_logger.write_progress(
                     "page_text_ready",
                     {
@@ -483,44 +535,116 @@ class RagIngestService:
                 )
                 
                 # Chunk this page's text only (no accumulation)
+                log_ingestion(
+                    "BEFORE_CHUNK_PAGE",
+                    "About to call write_progress then _chunk_text",
+                    document_id=str(document.id),
+                    page=page_count,
+                )
                 crash_logger.write_progress(
                     "before_chunk_page",
                     {"page": page_number, "document_id": str(document.id)},
                 )
+                log_ingestion(
+                    "BEFORE_CHUNK_CALL",
+                    "Past write_progress; about to call _chunk_text()",
+                    document_id=str(document.id),
+                    page=page_count,
+                )
                 page_chunks = self._chunk_text(page_text, chunk_words, overlap_words)
+                log_ingestion(
+                    "AFTER_CHUNK_CALL",
+                    "Returned from _chunk_text; next: len and AFTER_CHUNK_TEXT",
+                    document_id=str(document.id),
+                    page=page_count,
+                    num_chunks=len(page_chunks),
+                )
+                num_chunks = len(page_chunks)
+                log_ingestion(
+                    "AFTER_CHUNK_TEXT",
+                    "Chunking done; next: build previews and log CHUNKS_CREATED",
+                    document_id=str(document.id),
+                    page=page_count,
+                    num_chunks=num_chunks,
+                )
+                chunk_sizes_sample = [len(c) for c in page_chunks[:5]]
+                first_chunk_previews = [text_preview(c, 200) for c in page_chunks[:3]]
+                log_ingestion(
+                    "CHUNKS_CREATED",
+                    f"Page {page_count} chunked into {num_chunks} chunks; next: embed batches",
+                    document_id=str(document.id),
+                    page=page_count,
+                    num_chunks=num_chunks,
+                    chunk_words=chunk_words,
+                    overlap_words=overlap_words,
+                    chunk_sizes_sample=chunk_sizes_sample,
+                    first_chunk_previews=first_chunk_previews,
+                )
                 crash_logger.write_progress(
                     "after_chunk_page",
                     {
                         "page": page_number,
                         "document_id": str(document.id),
-                        "page_chunks": len(page_chunks),
-                        "chunk_sizes_sample": [len(c) for c in page_chunks[:3]],
+                        "page_chunks": num_chunks,
+                        "chunk_sizes_sample": chunk_sizes_sample[:3],
                     },
                 )
                 del page_text
                 gc.collect()
                 
                 if not page_chunks:
+                    log_ingestion("PAGE_SKIP_NO_CHUNKS", f"Page {page_count} produced no chunks; skipping", document_id=str(document.id), page=page_count)
                     continue
                 
                 # Process in small batches to bound memory
+                log_ingestion(
+                    "BEFORE_EMBED_LOOP",
+                    "Entering embed batch loop; next: memory check then embed",
+                    document_id=str(document.id),
+                    page=page_count,
+                    num_batches=(len(page_chunks) + INGEST_BATCH_CHUNKS - 1) // INGEST_BATCH_CHUNKS,
+                )
                 for i in range(0, len(page_chunks), INGEST_BATCH_CHUNKS):
                     batch = page_chunks[i:i + INGEST_BATCH_CHUNKS]
-                    
+                    log_ingestion(
+                        "BEFORE_MEMORY_CHECK",
+                        "Before _check_memory_safe; next: embed if ok",
+                        document_id=str(document.id),
+                        page=page_count,
+                        batch_size=len(batch),
+                    )
                     if not self._check_memory_safe():
                         used_gb, _ = self._check_memory()
                         raise MemoryError(
                             f"Memory threshold ({MEMORY_THRESHOLD_GB}GB) exceeded at page {page_count}: {used_gb:.2f}GB"
                         )
                     
+                    batch_size = len(batch)
+                    batch_index = i // INGEST_BATCH_CHUNKS + 1
+                    log_ingestion(
+                        "EMBED_BATCH_START",
+                        f"Embedding batch {batch_index} for page {page_count} ({batch_size} chunks)",
+                        document_id=str(document.id),
+                        page=page_count,
+                        batch_size=batch_size,
+                        batch_index=batch_index,
+                        embedding_model=config.embedding_model,
+                    )
                     crash_logger.write_progress(
                         "before_embed_batch",
-                        {"page": page_count, "batch_size": len(batch)}
+                        {"page": page_count, "batch_size": batch_size}
                     )
                     sys.stdout.flush()
                     # Embed this batch only (small batch = low memory)
                     batch_embeddings = await self.embedding_service.embed_texts(
                         batch, config.embedding_model, batch_size=len(batch)
+                    )
+                    log_ingestion(
+                        "EMBED_BATCH_END",
+                        f"Embedding batch {batch_index} completed; next: insert chunks and commit",
+                        document_id=str(document.id),
+                        page=page_count,
+                        embedding_count=len(batch_embeddings),
                     )
                     crash_logger.write_progress(
                         "after_embed_batch",
@@ -555,6 +679,14 @@ class RagIngestService:
                     await session.commit()
                     session.expunge_all()
                     new_total = total_chunks + len(chunk_objects)
+                    log_ingestion(
+                        "COMMIT_END",
+                        f"Batch committed; total chunks so far: {new_total}",
+                        document_id=str(document.id),
+                        page=page_count,
+                        batch_size=len(chunk_objects),
+                        total_chunks=new_total,
+                    )
                     crash_logger.write_progress("after_commit", {"page": page_count, "total_chunks": new_total})
                     sys.stdout.flush()
                     
@@ -581,6 +713,13 @@ class RagIngestService:
                         f"Page {page_count}: {total_chunks} chunks stored. Memory: {used_gb:.2f}GB"
                     )
                     logger.info(f"[PDF] Page {page_count}: {total_chunks} chunks. Memory: {used_gb:.2f}GB")
+                log_ingestion(
+                    "PAGE_COMPLETE",
+                    f"Page {page_count} fully processed; total chunks so far: {total_chunks}",
+                    document_id=str(document.id),
+                    page=page_count,
+                    total_chunks=total_chunks,
+                )
                 crash_logger.write_progress(
                     "page_complete",
                     {"page": page_count, "total_chunks": total_chunks},
@@ -588,6 +727,22 @@ class RagIngestService:
             
             total_time = time.time() - total_start
             if total_chunks == 0:
+                log_ingestion(
+                    "PDF_INGEST_END_EMPTY",
+                    "PDF ingestion ended with no chunks created",
+                    document_id=str(document.id),
+                    total_pages=page_count,
+                    total_chunks=0,
+                    duration_seconds=round(total_time, 2),
+                )
+                log_ingestion(
+                    "INGEST_END",
+                    "Document ingestion finished (empty)",
+                    document_id=str(document.id),
+                    status="empty",
+                    total_chunks=0,
+                    duration_seconds=round(total_time, 2),
+                )
                 await self._update_document_status(session, document, "empty", "No chunks could be created")
                 await session.refresh(document)
                 document.status = "empty"
@@ -596,6 +751,14 @@ class RagIngestService:
                 logger.warning(f"[PDF] Document {document.id} produced no chunks")
                 return
             
+            log_ingestion(
+                "PDF_INGEST_END",
+                "PDF ingestion completed successfully; next: update document status to indexed",
+                document_id=str(document.id),
+                total_pages=page_count,
+                total_chunks=total_chunks,
+                duration_seconds=round(total_time, 2),
+            )
             crash_logger.write_progress(
                 "pdf_ingest_complete",
                 {"document_id": str(document.id), "total_chunks": total_chunks, "page_count": page_count},
@@ -612,6 +775,15 @@ class RagIngestService:
                 f"Indexed {total_chunks} chunks from {page_count} pages (page-by-page). Time: {total_time:.2f}s"
             )
             await session.commit()
+            log_ingestion(
+                "INGEST_END",
+                "Document ingestion finished successfully (PDF page-by-page)",
+                document_id=str(document.id),
+                status="indexed",
+                total_pages=page_count,
+                total_chunks=total_chunks,
+                duration_seconds=round(total_time, 2),
+            )
             logger.info(
                 f"[PDF] Document {document.id} indexed: {page_count} pages, {total_chunks} chunks in {total_time:.2f}s"
             )
@@ -652,6 +824,14 @@ class RagIngestService:
         """
         total_start = time.time()
         step_info = {}  # Track progress for crash logs
+        log_ingestion(
+            "INGEST_START",
+            "Document upload ingestion started",
+            document_id=str(document.id),
+            filename=document.filename or "",
+            file_type=document.file_type or "",
+            storage_path=document.storage_path or "",
+        )
         crash_logger.write_progress(
             "ingest_document_start",
             {"document_id": str(document.id), "filename": document.filename or "", "file_type": document.file_type or ""}
@@ -676,9 +856,18 @@ class RagIngestService:
             file_path = Path(document.storage_path)
             if not file_path.exists():
                 raise FileNotFoundError(f"Document file not found: {document.storage_path}")
-            
+            file_size_bytes = file_path.stat().st_size
+            file_size_kb = round(file_size_bytes / 1024, 2)
             step_info["file_exists"] = True
             step_info["file_path"] = str(file_path)
+            log_ingestion(
+                "FILE_VERIFIED",
+                "File found on disk; next: validate size",
+                document_id=str(document.id),
+                file_path=str(file_path),
+                file_size_bytes=file_size_bytes,
+                file_size_kb=file_size_kb,
+            )
             crash_logger.write_progress(
                 "file_verified",
                 {"document_id": str(document.id), "file_path": str(file_path)},
@@ -687,6 +876,13 @@ class RagIngestService:
             # Validate file size upfront
             self._validate_file_size(file_path)
             step_info["file_size_validated"] = True
+            log_ingestion(
+                "FILE_SIZE_VALIDATED",
+                "File size within limit; next: check memory and init",
+                document_id=str(document.id),
+                file_size_bytes=file_size_bytes,
+                max_file_size_mb=MAX_FILE_SIZE / (1024 * 1024),
+            )
 
             # Check initial memory
             used_gb, percent = self._check_memory()
@@ -700,7 +896,15 @@ class RagIngestService:
             overlap_words = overlap_words_override or config.overlap_words
             step_info["chunk_words"] = chunk_words
             step_info["overlap_words"] = overlap_words
-            
+            log_ingestion(
+                "INIT_COMPLETE",
+                "Initialization complete; next: PDF page-by-page or full extract",
+                document_id=str(document.id),
+                chunk_words=chunk_words,
+                overlap_words=overlap_words,
+                memory_gb=round(used_gb, 2),
+                memory_percent=round(percent, 2),
+            )
             logger.info(f"[STEP 0] Initialization complete. Memory: {used_gb:.2f}GB")
             crash_logger.write_progress(
                 "init_complete",
@@ -709,6 +913,12 @@ class RagIngestService:
 
             # PDF: use memory-bounded page-by-page ingestion to avoid OOM
             if document.file_type == "pdf":
+                log_ingestion(
+                    "PDF_INGEST_START",
+                    "PDF detected; starting page-by-page extraction and chunking",
+                    document_id=str(document.id),
+                    filename=document.filename or "",
+                )
                 await self._ingest_pdf_page_by_page(
                     session, document, config, file_path,
                     chunk_words, overlap_words, step_info, total_start
@@ -735,7 +945,17 @@ class RagIngestService:
                 
                 used_gb, percent = self._check_memory()
                 step_info["memory_after_extraction_gb"] = used_gb
-                
+                log_ingestion(
+                    "STEP1_EXTRACT_END",
+                    "Full text extracted; next: create chunks",
+                    document_id=str(document.id),
+                    file_type=document.file_type,
+                    text_length=len(full_text),
+                    page_count=page_count,
+                    extraction_time_seconds=round(extraction_time, 2),
+                    text_preview=text_preview(full_text, 500),
+                    memory_gb=round(used_gb, 2),
+                )
                 logger.info(f"[STEP 1] ✅ Text extraction completed: {len(full_text)} chars, {page_count} pages in {extraction_time:.2f}s. Memory: {used_gb:.2f}GB")
                 crash_logger.write_progress(
                     "step1_extract_complete",
@@ -788,7 +1008,15 @@ class RagIngestService:
                 
                 used_gb, percent = self._check_memory()
                 step_info["memory_after_chunking_gb"] = used_gb
-                
+                log_ingestion(
+                    "STEP2_CHUNKS_END",
+                    "Chunks created; next: generate embeddings",
+                    document_id=str(document.id),
+                    chunk_count=len(all_chunks),
+                    chunk_sizes_sample=[len(c) for c in all_chunks[:5]],
+                    chunking_time_seconds=round(chunking_time, 3),
+                    memory_gb=round(used_gb, 2),
+                )
                 logger.info(f"[STEP 2] ✅ Chunking completed: {len(all_chunks)} chunks in {chunking_time:.3f}s. Memory: {used_gb:.2f}GB")
                 crash_logger.write_progress(
                     "step2_chunk_complete",
@@ -859,7 +1087,14 @@ class RagIngestService:
                 
                 used_gb, percent = self._check_memory()
                 step_info["memory_after_embedding_gb"] = used_gb
-                
+                log_ingestion(
+                    "STEP3_EMBED_END",
+                    "Embeddings generated; next: insert chunks into DB",
+                    document_id=str(document.id),
+                    embedding_count=len(all_embeddings),
+                    embedding_time_seconds=round(embedding_time, 2),
+                    memory_gb=round(used_gb, 2),
+                )
                 logger.info(f"[STEP 3] ✅ Embedding generation completed: {len(all_embeddings)} embeddings in {embedding_time:.2f}s. Memory: {used_gb:.2f}GB")
                 crash_logger.write_progress(
                     "step3_embed_complete",
@@ -942,6 +1177,14 @@ class RagIngestService:
                 used_gb, percent = self._check_memory()
                 step_info["memory_after_insert_gb"] = used_gb
                 
+                log_ingestion(
+                    "STEP4_INSERT_END",
+                    "Chunks inserted into DB; next: update document status to indexed",
+                    document_id=str(document.id),
+                    chunks_inserted=len(chunk_objects),
+                    insert_time_seconds=round(insert_time, 2),
+                    memory_gb=round(used_gb, 2),
+                )
                 logger.info(f"[STEP 4] ✅ Database insert completed: {len(chunk_objects)} chunks in {insert_time:.2f}s. Memory: {used_gb:.2f}GB")
                 crash_logger.write_progress(
                     "step4_insert_complete",
@@ -983,6 +1226,19 @@ class RagIngestService:
 
             # Final status update
             total_time = time.time() - total_start
+            log_ingestion(
+                "INGEST_END",
+                "Document ingestion finished successfully (full extract path)",
+                document_id=str(document.id),
+                status="indexed",
+                total_pages=page_count,
+                total_chunks=chunk_count,
+                duration_seconds=round(total_time, 2),
+                extraction_time_seconds=round(extraction_time, 2),
+                chunking_time_seconds=round(chunking_time, 3),
+                embedding_time_seconds=round(embedding_time, 2),
+                insert_time_seconds=round(insert_time, 2),
+            )
             logger.info(
                 f"Document processed successfully: {page_count} pages, {chunk_count} chunks "
                 f"in {total_time:.2f}s (Extract: {extraction_time:.2f}s, Chunk: {chunking_time:.3f}s, "
