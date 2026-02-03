@@ -15,5 +15,5 @@ python-multipart==0.0.9
 psutil==5.9.8
 pytest==8.3.3
 bcrypt==3.2.2
-# Local embeddings: NOT in default build (pulls PyTorch ~1–2GB, causes long/failing Docker builds).
-# To use local embeddings: pip install -r requirements-local-embeddings.txt (see Embedding.md).
+# Local embeddings support (pulls PyTorch ~1–2GB, may cause long Docker builds)
+sentence-transformers>=2.2.0

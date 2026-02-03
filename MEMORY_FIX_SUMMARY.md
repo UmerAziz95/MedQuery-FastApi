@@ -6,7 +6,7 @@ Container crashes with exit code 137 (OOM kill) even on small PDF files (KB size
 ## Root Causes Identified
 1. **PDF Processing**: Even PyMuPDF can accumulate memory during processing
 2. **Embedding Generation**: OpenAI API responses accumulate in memory
-3. **Database Writes**: Vector embeddings (1536 dimensions × 4 bytes = 6KB per chunk) accumulate
+3. **Database Writes**: Vector embeddings (384 dimensions × 4 bytes = 6KB per chunk) accumulate
 4. **Memory Leaks**: Objects not being garbage collected between operations
 
 ## Solutions Implemented

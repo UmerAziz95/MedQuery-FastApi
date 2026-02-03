@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,6 +23,7 @@ class WorkspaceConfig(Base):
     similarity_threshold: Mapped[float] = mapped_column(Float, default=0.2)
     max_context_chars: Mapped[int] = mapped_column(Integer, default=12000)
     embedding_model: Mapped[str] = mapped_column(String(255), default="text-embedding-3-small")
+    use_local_embeddings: Mapped[bool] = mapped_column(Boolean, default=False)
     chat_model_default: Mapped[str] = mapped_column(String(255), default="gpt-4.1-mini")
     chat_temperature_default: Mapped[float] = mapped_column(Float, default=0.2)
     chat_max_tokens_default: Mapped[int] = mapped_column(Integer, default=600)

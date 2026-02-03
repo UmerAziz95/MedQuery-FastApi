@@ -20,10 +20,10 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     default_embedding_model: str = "text-embedding-3-small"
     default_chat_model: str = "gpt-4.1-mini"
-    vector_dimension: int = 1536
+    vector_dimension: int = 384
     # Local embeddings (no API call): set use_local_embeddings=true and local_embedding_model (e.g. all-MiniLM-L6-v2).
-    # Then set vector_dimension to match the model (384 for all-MiniLM-L6-v2) and run a migration if changing from 1536.
-    use_local_embeddings: bool = False
+    # Then set vector_dimension to match the model (384 for all-MiniLM-L6-v2) and run a migration if changing from 384.
+    use_local_embeddings: bool = True
     local_embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
     file_storage_path: str = "./storage"

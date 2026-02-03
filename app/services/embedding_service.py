@@ -38,8 +38,9 @@ class EmbeddingService:
             self._local_model = SentenceTransformer(model_name)
         return self._local_model
 
-    def get_dimension(self, model: str) -> int:
-        if self.settings.use_local_embeddings:
+    def get_dimension(self, model: str, use_local: bool | None = None) -> int:
+        use_local_flag = use_local if use_local is not None else self.settings.use_local_embeddings
+        if use_local_flag:
             dim = EMBEDDING_MODEL_DIMENSIONS.get(
                 self.settings.local_embedding_model,
                 EMBEDDING_MODEL_DIMENSIONS.get("all-MiniLM-L6-v2", 384),
@@ -47,25 +48,26 @@ class EmbeddingService:
             return dim
         return EMBEDDING_MODEL_DIMENSIONS.get(model, EMBEDDING_MODEL_DIMENSIONS[self.settings.default_embedding_model])
 
-    def validate_dimension(self, model: str) -> None:
+    def validate_dimension(self, model: str, use_local: bool | None = None) -> None:
         expected = self.settings.vector_dimension
-        actual = self.get_dimension(model)
+        actual = self.get_dimension(model, use_local=use_local)
         if actual != expected:
             raise ValueError(
                 f"Embedding model dimension {actual} does not match configured vector dimension {expected}"
             )
 
-    async def embed_texts(self, texts: Sequence[str], model: str, batch_size: int | None = None) -> list[list[float]]:
-        self.validate_dimension(model)
+    async def embed_texts(self, texts: Sequence[str], model: str, batch_size: int | None = None, use_local: bool | None = None) -> list[list[float]]:
+        # Determine if we should use local embeddings: workspace config overrides global setting
+        use_local_flag = use_local if use_local is not None else self.settings.use_local_embeddings
+        self.validate_dimension(model, use_local=use_local_flag)
         if not texts:
             return []
-        if not self.settings.use_local_embeddings and not self.settings.openai_api_key:
+        if not use_local_flag and not self.settings.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY not configured (or set use_local_embeddings=true for local embeddings)")
         
         texts_list = list(texts)
         total_texts = len(texts_list)
-        use_local = self.settings.use_local_embeddings
-        logger.info("Embedding request start: total_texts=%s model=%s use_local=%s", total_texts, model, use_local)
+        logger.info("Embedding request start: total_texts=%s model=%s use_local=%s", total_texts, model, use_local_flag)
         
         # Optimize batch size based on number of texts, then clamp to safe limits.
         if batch_size is None:
@@ -84,7 +86,7 @@ class EmbeddingService:
         # If all texts fit in one batch, process immediately (fastest for small files)
         if total_texts <= batch_size:
             logger.debug(f"Processing {total_texts} texts in single batch (small file optimization)")
-            if use_local:
+            if use_local_flag:
                 return await self._embed_batch_local(texts_list)
             return await self._embed_batch(texts_list, model)
         
@@ -102,7 +104,7 @@ class EmbeddingService:
                 logger.info(f"Processing embedding batch {batch_num}/{total_batches} ({len(batch)} texts)")
             batch_start = time.time()
             
-            if use_local:
+            if use_local_flag:
                 embeddings = await self._embed_batch_local(batch)
             else:
                 embeddings = await self._embed_batch(batch, model)

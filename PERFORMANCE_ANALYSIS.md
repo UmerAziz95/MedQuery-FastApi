@@ -91,7 +91,7 @@
    - **Solution**: SQLAlchemy async engine handles this automatically
 
 3. **Vector Index Performance** (PostgreSQL pgvector)
-   - Large embeddings: 1536 dimensions × 4 bytes = 6KB per chunk
+   - Large embeddings: 384 dimensions × 4 bytes = 6KB per chunk
    - **Solution**: Indexes should be created on embedding columns
 
 ## Monitoring Recommendations

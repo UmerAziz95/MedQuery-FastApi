@@ -12,7 +12,7 @@ The default app and Docker image **do not** install `sentence-transformers`, bec
 | Term | What it is | Example |
 |------|------------|--------|
 | **Chunk** | A **piece of text** split from a document (e.g. 300 words with 50-word overlap). Human-readable. | *"To change your login credentials, go to Settings → Account → Security. Click Reset password and follow the email link."* |
-| **Vector** | A **list of numbers** (e.g. 384 or 1536 floats) that represents that text for similarity search. Not human-readable. | `[0.023, -0.141, 0.891, ...]` |
+| **Vector** | A **list of numbers** (e.g. 384 or 384 floats) that represents that text for similarity search. Not human-readable. | `[0.023, -0.141, 0.891, ...]` |
 | **Embedding** | The **vector you get** when you pass text (a chunk or a query) through the embedding model. So: *embedding = the output vector*. In practice we often say "embedding" and "vector" for the same thing. | Same as vector: the list of numbers produced by the model. |
 
 **In one line:** A **chunk** is the text; the **embedding** (or **vector**) is the list of numbers that represents that text so we can compare "meaning" by comparing vectors.

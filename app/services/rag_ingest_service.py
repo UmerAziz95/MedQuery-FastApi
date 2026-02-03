@@ -637,7 +637,7 @@ class RagIngestService:
                     sys.stdout.flush()
                     # Embed this batch only (small batch = low memory)
                     batch_embeddings = await self.embedding_service.embed_texts(
-                        batch, config.embedding_model, batch_size=len(batch)
+                        batch, config.embedding_model, batch_size=len(batch), use_local=config.use_local_embeddings
                     )
                     log_ingestion(
                         "EMBED_BATCH_END",
@@ -1077,7 +1077,8 @@ class RagIngestService:
                 all_embeddings = await self.embedding_service.embed_texts(
                     all_chunks, 
                     config.embedding_model, 
-                    batch_size=None  # Let embedding service decide optimal batch size
+                    batch_size=None,  # Let embedding service decide optimal batch size
+                    use_local=config.use_local_embeddings
                 )
                 
                 embedding_time = time.time() - embedding_start

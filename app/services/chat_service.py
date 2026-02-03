@@ -26,7 +26,7 @@ class ChatService:
         config: WorkspaceConfig,
         override: dict | None = None,
     ) -> tuple[str, list[dict], dict]:
-        embedding = (await self.embedding_service.embed_texts([query], config.embedding_model))[0]
+        embedding = (await self.embedding_service.embed_texts([query], config.embedding_model, use_local=config.use_local_embeddings))[0]
         chunks = await retrieve_chunks(
             session=session,
             business_id=business_id,

@@ -74,7 +74,11 @@ async def seed_initial_admin() -> None:
                 )
                 session.add(workspace)
                 await session.flush()
-                session.add(WorkspaceConfig(business_id=business.id, workspace_id=workspace.id))
+                session.add(WorkspaceConfig(
+                    business_id=business.id, 
+                    workspace_id=workspace.id,
+                    use_local_embeddings=False  # Default to ChatGPT API, can be changed via API
+                ))
 
             admin = BusinessAdmin(
                 id=uuid.uuid4(),

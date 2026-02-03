@@ -25,7 +25,7 @@ Create a `.env` file:
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/medquery
 JWT_SECRET_KEY=change-me
 OPENAI_API_KEY=sk-...
-VECTOR_DIMENSION=1536
+VECTOR_DIMENSION=384
 ```
 
 ### 3) Database and migrations
@@ -51,7 +51,7 @@ Create a `.env` file in the repo root (same variables as above):
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/medquery
 JWT_SECRET_KEY=change-me
 OPENAI_API_KEY=sk-...
-VECTOR_DIMENSION=1536
+VECTOR_DIMENSION=384
 ```
 
 ### 2) Start services
@@ -182,7 +182,7 @@ You can create embeddings **locally** so no API key or network call is needed:
    - `USE_LOCAL_EMBEDDINGS=true`
    - `LOCAL_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2` (default; 384 dimensions)
    - `VECTOR_DIMENSION=384` (must match the local model)
-3. If your database was created with 1536-dim vectors (OpenAI default), you must add a migration to alter `document_chunks.embedding` to 384 dimensions and re-ingest documents, or use a fresh database.
+3. If your database was created with 384-dim vectors (OpenAI default), you must add a migration to alter `document_chunks.embedding` to 384 dimensions and re-ingest documents, or use a fresh database.
 
 Local embeddings avoid API cost and work offline; the model is loaded in memory (~100–400 MB depending on the model).
 
