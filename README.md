@@ -188,11 +188,21 @@ Local embeddings avoid API cost and work offline; the model is loaded in memory 
 
 
 ============================================================
+🚀 Quick Start Commands
+
 Start everything (build if needed)
 docker compose up -d
 
-▶️ Build fresh + start (use after code/env change)
+▶️ Build fresh + start (use ONLY when requirements.txt changes)
 docker compose up -d --build
+
+⚡ For code changes (NO rebuild needed - code is mounted as volume)
+docker compose restart api
+# OR just restart the container - code changes reflect immediately!
+
+💡 Development Tip: Code is mounted as volume, so:
+   - Code changes → Just restart: docker compose restart api
+   - Requirements change → Rebuild: docker compose up -d --build api
 
 ⏹ Stop all services (keep data)
 docker compose down
@@ -305,3 +315,4 @@ Logs ALWAYS tell the truth
 docker compose up -d --build
 docker compose ps   //logs
 docker compose logs -f api //logs
+docker compose restart api

@@ -15,7 +15,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 try:
     import psutil
@@ -461,6 +461,7 @@ class RagIngestService:
         overlap_words: int,
         step_info: dict,
         total_start: float,
+        cancellation_check: Callable[[], None] | None = None,
     ) -> None:
         """
         Ingest PDF page-by-page: for each page extract text -> chunk -> embed (small batch) -> insert -> commit.
@@ -486,8 +487,20 @@ class RagIngestService:
         sys.stdout.flush()
         sys.stderr.flush()
         
+        # Custom exception for cancellation
+        class CancellationError(Exception):
+            pass
+        
+        def check_cancellation():
+            """Check if cancellation was requested."""
+            if cancellation_check and cancellation_check():
+                raise CancellationError("Document processing was cancelled by user")
+        
         try:
             for page_number, page_text in self._iter_pdf_pages(file_path):
+                # Check for cancellation before processing each page
+                check_cancellation()
+                
                 page_count = page_number
                 text_len = len(page_text or "")
                 text_preview_str = text_preview(page_text or "", 500)
@@ -605,6 +618,9 @@ class RagIngestService:
                     num_batches=(len(page_chunks) + INGEST_BATCH_CHUNKS - 1) // INGEST_BATCH_CHUNKS,
                 )
                 for i in range(0, len(page_chunks), INGEST_BATCH_CHUNKS):
+                    # Check for cancellation before each embedding batch
+                    check_cancellation()
+                    
                     batch = page_chunks[i:i + INGEST_BATCH_CHUNKS]
                     log_ingestion(
                         "BEFORE_MEMORY_CHECK",
@@ -788,6 +804,20 @@ class RagIngestService:
                 f"[PDF] Document {document.id} indexed: {page_count} pages, {total_chunks} chunks in {total_time:.2f}s"
             )
             
+        except CancellationError:
+            # Handle cancellation gracefully in page-by-page processing
+            logger.info(f"Document processing cancelled during page-by-page: {document.id}")
+            try:
+                await session.refresh(document)
+            except (InvalidRequestError, AttributeError):
+                document = await session.get(Document, document.id)
+                if not document:
+                    return
+            document.status = "cancelled"
+            document.meta_json = "Processing cancelled by user"
+            await session.commit()
+            logger.info(f"Document {document.id} status updated to cancelled")
+            return  # Exit gracefully
         except Exception as e:
             step_info["page_count"] = page_count
             step_info["total_chunks"] = total_chunks
@@ -814,6 +844,7 @@ class RagIngestService:
         config: WorkspaceConfig,
         chunk_words_override: int | None = None,
         overlap_words_override: int | None = None,
+        cancellation_check: Callable[[], None] | None = None,
     ) -> None:
         """
         Ingest document using ChromaDB-style batch operations:
@@ -822,6 +853,15 @@ class RagIngestService:
         3. Generate ALL embeddings in batch
         4. Insert ALL chunks in single transaction
         """
+        # Custom exception for cancellation
+        class CancellationError(Exception):
+            pass
+        
+        def check_cancellation():
+            """Check if cancellation was requested."""
+            if cancellation_check and cancellation_check():
+                raise CancellationError("Document processing was cancelled by user")
+        
         total_start = time.time()
         step_info = {}  # Track progress for crash logs
         log_ingestion(
@@ -849,6 +889,9 @@ class RagIngestService:
             self._memory_watchdog(watchdog_stop, str(document.id))
         )
         try:
+            # Check for cancellation before starting
+            check_cancellation()
+            
             # INITIALIZATION STEP
             logger.info("[STEP 0] Initialization and validation...")
             await self._update_document_status(session, document, "processing", "Initializing document processing...")
@@ -920,8 +963,7 @@ class RagIngestService:
                     filename=document.filename or "",
                 )
                 await self._ingest_pdf_page_by_page(
-                    session, document, config, file_path,
-                    chunk_words, overlap_words, step_info, total_start
+                    session, document, config, file_path, chunk_words, overlap_words, step_info, total_start, cancellation_check
                 )
                 return
 
@@ -1063,6 +1105,9 @@ class RagIngestService:
                     f"Stopping to prevent crash."
                 )
 
+            # Check for cancellation before embedding
+            check_cancellation()
+            
             # STEP 3: Generate ALL embeddings in batch (like ChromaDB)
             logger.info(f"[STEP 3] Generating embeddings for {len(all_chunks)} chunks in batch...")
             await self._update_document_status(session, document, "processing", f"Step 3/4: Generating embeddings for {len(all_chunks)} chunks...")
@@ -1134,6 +1179,9 @@ class RagIngestService:
                     f"Stopping to prevent crash."
                 )
 
+            # Check for cancellation before inserting
+            check_cancellation()
+            
             # STEP 4: Insert ALL chunks in single batch transaction (like ChromaDB)
             logger.info(f"[STEP 4] Inserting {len(all_chunks)} chunks in single batch transaction...")
             await self._update_document_status(session, document, "processing", f"Step 4/4: Storing {len(all_chunks)} chunks in database...")
@@ -1295,6 +1343,20 @@ class RagIngestService:
                 f"Memory error: {str(mem_error)[:200]}. Check logs/crashes/ for details."
             )
             raise
+        except CancellationError:
+            # Handle cancellation gracefully
+            logger.info(f"Document processing cancelled: {document.id}")
+            try:
+                await session.refresh(document)
+            except (InvalidRequestError, AttributeError):
+                document = await session.get(Document, document.id)
+                if not document:
+                    return
+            document.status = "cancelled"
+            document.meta_json = "Processing cancelled by user"
+            await session.commit()
+            logger.info(f"Document {document.id} status updated to cancelled")
+            return  # Exit gracefully
         except Exception as e:
             # Log crash with full context
             is_critical = isinstance(e, (MemoryError, SystemError, KeyboardInterrupt))

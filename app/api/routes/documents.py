@@ -21,6 +21,8 @@ router = APIRouter(
     tags=["Documents"],
 )
 _INGEST_LOCK = asyncio.Lock()
+# Track cancellation requests by document_id
+_CANCELLATION_REQUESTS: dict[str, bool] = {}
 
 
 async def _get_workspace(
@@ -117,10 +119,22 @@ async def _process_document_background(
                 # Add timeout to prevent hanging (30 minutes max)
                 try:
                     service = RagIngestService()
+                    # Pass cancellation check function that returns True if cancellation requested
+                    def check_cancellation() -> bool:
+                        cancelled = _CANCELLATION_REQUESTS.get(document_id, False)
+                        if cancelled:
+                            logger.debug(f"Cancellation check returned True for document {document_id}")
+                        return cancelled
+                    
                     await asyncio.wait_for(
-                        service.ingest_document(bg_session, document, config, chunk_words, overlap_words),
+                        service.ingest_document(
+                            bg_session, document, config, chunk_words, overlap_words,
+                            cancellation_check=check_cancellation
+                        ),
                         timeout=1800.0  # 30 minutes
                     )
+                    # Clear cancellation flag if processing completed
+                    _CANCELLATION_REQUESTS.pop(document_id, None)
                     logger.info(f"Processing completed successfully: document_id={document_id}")
                 except asyncio.TimeoutError:
                     logger.error(f"Processing timed out for document {document_id}")
@@ -163,6 +177,18 @@ async def _process_document_background(
                     document.status = "failed"
                     document.meta_json = "Processing interrupted"
                     await bg_session.commit()
+                    raise
+                except Exception as ingest_exc:
+                    # Check if this was a cancellation
+                    if _CANCELLATION_REQUESTS.get(document_id, False):
+                        logger.info(f"Processing cancelled for document {document_id}")
+                        await bg_session.refresh(document)
+                        document.status = "cancelled"
+                        document.meta_json = "Processing cancelled by user"
+                        await bg_session.commit()
+                        _CANCELLATION_REQUESTS.pop(document_id, None)
+                        return  # Exit gracefully on cancellation
+                    # Re-raise if not a cancellation
                     raise
                 except Exception:
                     # Re-raise to be caught by outer handler
@@ -548,8 +574,10 @@ async def delete_document(
     session: AsyncSession = Depends(get_session),
     admin: BusinessAdmin = Depends(get_current_admin),
 ) -> dict:
+    """Delete a document and all its chunks from the database."""
     business, workspace = await _get_workspace(session, business_client_id, workspace_id)
     _ensure_access(admin, business)
+    
     stmt = select(Document).where(
         Document.id == document_id,
         Document.business_id == business.id,
@@ -558,9 +586,33 @@ async def delete_document(
     document = (await session.execute(stmt)).scalar_one_or_none()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
+    
+    # If document is processing, cancel it first
+    if document.status == "processing":
+        _CANCELLATION_REQUESTS[document_id] = True
+        logger.info(f"Cancellation requested for document {document_id} before deletion")
+    
+    # Delete all chunks associated with this document
+    # The cascade should handle this, but we'll do it explicitly to be sure
+    from sqlalchemy import delete
+    chunks_deleted = await session.execute(
+        delete(DocumentChunk).where(DocumentChunk.document_id == document_id)
+    )
+    logger.info(f"Deleted {chunks_deleted.rowcount} chunks for document {document_id}")
+    
+    # Delete the document (cascade will also delete chunks, but we did it explicitly above)
+    filename = document.filename
     await session.delete(document)
     await session.commit()
-    return {"status": "deleted"}
+    
+    # Clean up cancellation flag if it exists
+    _CANCELLATION_REQUESTS.pop(document_id, None)
+    
+    logger.info(f"Document {document_id} ({filename}) and all its chunks deleted successfully")
+    return {
+        "status": "deleted",
+        "message": f"Document '{filename}' and all its chunks have been deleted."
+    }
 
 
 @router.get("/documents/{document_id}/chunks", response_model=list[DocumentChunkOut])
@@ -586,6 +638,52 @@ async def list_document_chunks(
         .limit(limit)
     )
     return list((await session.execute(stmt)).scalars().all())
+
+
+@router.post("/documents/{document_id}/cancel")
+async def cancel_document(
+    business_client_id: str,
+    workspace_id: str,
+    document_id: str,
+    session: AsyncSession = Depends(get_session),
+    admin: BusinessAdmin = Depends(get_current_admin),
+) -> dict:
+    """Cancel document processing if it's currently in progress."""
+    business, workspace = await _get_workspace(session, business_client_id, workspace_id)
+    _ensure_access(admin, business)
+    stmt = select(Document).where(
+        Document.id == document_id,
+        Document.business_id == business.id,
+        Document.workspace_id == workspace.id,
+    )
+    document = (await session.execute(stmt)).scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    if document.status == "processing" or document.status == "cancelling":
+        # Set cancellation flag
+        _CANCELLATION_REQUESTS[document_id] = True
+        logger.info(f"Cancellation requested for document {document_id}")
+        
+        # Update status immediately to "cancelled" for immediate UI feedback
+        document.status = "cancelled"
+        document.meta_json = "Processing cancelled by user"
+        await session.commit()
+        
+        return {
+            "status": "cancellation_requested",
+            "message": "Document cancelled. Background processing will stop at the next checkpoint."
+        }
+    elif document.status == "cancelled":
+        return {
+            "status": "already_cancelled",
+            "message": "Document is already cancelled."
+        }
+    else:
+        return {
+            "status": "cannot_cancel",
+            "message": f"Cannot cancel document with status: {document.status}. Only documents in 'processing' status can be cancelled."
+        }
 
 
 @router.post("/documents/{document_id}/reset")
