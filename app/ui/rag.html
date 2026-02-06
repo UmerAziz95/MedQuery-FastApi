@@ -328,11 +328,10 @@
         background-color: #6c757d;
         color: white;
         border: none;
-        padding: 4px 12px;
+        padding: 3px 8px;
         border-radius: 4px;
         cursor: pointer;
-        font-size: 12px;
-        margin-left: 8px;
+        font-size: 11px;
       }
       .delete-btn:hover {
         background-color: #5a6268;
@@ -347,13 +346,19 @@
         50% { opacity: 0.6; }
       }
 
+      .rag-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: nowrap;
+      }
       .view-chunks-btn {
         background: var(--accent);
         color: white;
         border: none;
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-size: 12px;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 11px;
         cursor: pointer;
         font-weight: 500;
       }
@@ -793,12 +798,11 @@
                           <td>${chunkCount}</td>
                           <td>
                             ${normalizedStatus === "indexed" ? 
-                              `<button class="view-chunks-btn" onclick="viewChunks('${document.id}', '${businessClientId}', '${workspaceId}')">View Chunks</button>
-                               <button class="delete-btn" onclick="deleteDocument('${document.id}', '${businessClientId}', '${workspaceId}')" id="delete-btn-${document.id}">Delete</button>` : 
+                              `<span class="rag-actions"><button class="view-chunks-btn" onclick="viewChunks('${document.id}', '${businessClientId}', '${workspaceId}')">View Chunks</button><button class="delete-btn" onclick="deleteDocument('${document.id}', '${businessClientId}', '${workspaceId}')" id="delete-btn-${document.id}">Delete</button></span>` : 
                               normalizedStatus === "processing" ?
                               `<button class="cancel-btn" onclick="cancelDocument('${document.id}', '${businessClientId}', '${workspaceId}')" id="cancel-btn-${document.id}">Cancel</button>` :
                               normalizedStatus === "cancelled" || normalizedStatus === "failed" ?
-                              `<button class="delete-btn" onclick="deleteDocument('${document.id}', '${businessClientId}', '${workspaceId}')" id="delete-btn-${document.id}">Delete</button>` :
+                              `<span class="rag-actions"><button class="delete-btn" onclick="deleteDocument('${document.id}', '${businessClientId}', '${workspaceId}')" id="delete-btn-${document.id}">Delete</button></span>` :
                               ""}
                           </td>
                         </tr>
