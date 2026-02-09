@@ -28,7 +28,8 @@ logs/*
 !logs/README.md
 *.log
 
-# Environment
+# Environment (do not bake secrets into image; pass at runtime via env_file or -e)
+.env
 .env.local
 .env.*.local
 

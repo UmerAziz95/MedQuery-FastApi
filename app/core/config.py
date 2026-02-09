@@ -1,5 +1,5 @@
 from functools import lru_cache
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,7 +16,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
 
-    openai_api_key: str | None = None
+    # Static key: validation_alias prevents .env OPENAI_API_KEY from overriding. Replace below with your full key (51+ chars).
+    openai_api_key: str | None = Field(
+        default="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",
+        validation_alias="OPENAI_API_KEY_FROM_ENV",
+    )
     openai_base_url: str = "https://api.openai.com/v1"
     default_embedding_model: str = "text-embedding-3-small"
     default_chat_model: str = "gpt-4.1-mini"

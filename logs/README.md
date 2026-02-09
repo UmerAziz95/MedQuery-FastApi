@@ -7,12 +7,28 @@ This directory contains crash logs, progress logs, and **comprehensive ingestion
 ```
 logs/
 ├── ingestion.log      # Step-by-step ingestion log (every step from upload to indexed)
+├── chat.log           # Step-by-step chat log (query → embed → RAG → prompt → GPT → response)
 ├── crashes/           # ingest_progress.log (OOM), crash_*.log, memory_pressure.log
 │   ├── ingest_progress.log   # Last step before OOM (exit 137)
 │   ├── crash_YYYYMMDD_HHMMSS_PID.log
 │   └── memory_pressure.log
 └── README.md          # This file
 ```
+
+## Chat Log (`chat.log`)
+
+**One JSON line per step.** Every step of the RAG chat flow is logged:
+
+- **CHAT_REQUEST_RECEIVED** – Request hit the API (business_client_id, workspace_id, query)
+- **CHAT_BUSINESS_FOUND** / **CHAT_WORKSPACE_FOUND** / **CHAT_CONFIG_FOUND** – Lookups OK
+- **CHAT_QUERY_RECEIVED** – Query in system (query, query_word_count)
+- **CHAT_EMBEDDING_START** / **CHAT_EMBEDDING_DONE** – Query embedded (vector_dim, vector_preview)
+- **CHAT_RETRIEVAL_START** / **CHAT_RETRIEVAL_DONE** – RAG search (chunk_count, chunk_ids, chunks_matched)
+- **CHAT_PROMPT_BUILT** – Final prompt for GPT (prompt_preview, lengths)
+- **CHAT_OPENAI_CALL** – Call to ChatGPT API (model, temperature, max_tokens)
+- **CHAT_OPENAI_RESPONSE** – GPT response (answer_preview, token counts)
+- **CHAT_SAVED** – Request/response saved to DB
+- **CHAT_ERROR** – Failure (step, error, error_type) so you can see exactly where it failed
 
 ## Ingestion Log (`ingestion.log`)
 

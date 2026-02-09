@@ -376,6 +376,7 @@
           <div style="margin-top: 12px;">
             <label for="prompt">Prompt Engineering</label>
             <textarea id="prompt">You are a medical assistant. Provide concise answers.</textarea>
+            <div class="status" style="margin-top: 6px;">Chat mode: query is embedded → searched in RAG (business/workspace) → context + prompt + query sent to GPT → response shown here.</div>
           </div>
           <div style="margin-top: 12px;">
             <label for="chat-override">Chat Config Override (JSON)</label>
@@ -596,12 +597,39 @@
         };
       };
 
+      const formatChatResponse = (responseBody) => {
+        const parts = [responseBody.answer];
+        if (responseBody.sources && responseBody.sources.length > 0) {
+          parts.push("\n---\nSources (" + responseBody.sources.length + "):");
+          responseBody.sources.forEach((s, i) => {
+            parts.push(`  ${i + 1}. ${s.filename}${s.page != null ? ` (page ${s.page})` : ""}`);
+          });
+        }
+        if (responseBody.usage) {
+          const u = responseBody.usage;
+          parts.push("\n---\nTokens: " + (u.prompt_tokens || 0) + " prompt, " + (u.completion_tokens || 0) + " completion" + (u.total_tokens ? " (" + u.total_tokens + " total)" : ""));
+        }
+        return parts.join("\n");
+      };
+
       const sendMessage = async () => {
         const query = inputEl.value.trim();
         if (!query) {
           setStatus(sendStatusEl, "Type a prompt before sending.", "error");
           logEvent("warning", "chat", "chat_send_validation", "Empty prompt");
           return;
+        }
+
+        const isChatMode = modeEl.value === "chat";
+        if (isChatMode) {
+          if (!businessEl.value.trim() || !workspaceEl.value.trim()) {
+            setStatus(sendStatusEl, "Set Business and Workspace for RAG chat.", "error");
+            return;
+          }
+          if (!promptEl.value.trim()) {
+            setStatus(sendStatusEl, "Set Prompt Engineering (system prompt) for chat mode.", "error");
+            return;
+          }
         }
 
         if (!activeChatId) {
@@ -625,9 +653,20 @@
           });
           const responseBody = await response.json().catch(() => ({}));
           if (!response.ok) {
-            throw new Error(responseBody.detail || "Request failed.");
+            const errMsg = Array.isArray(responseBody.detail) ? responseBody.detail.map(d => d.msg || d.loc?.join(".")).join("; ") : (responseBody.detail && typeof responseBody.detail === "object" ? JSON.stringify(responseBody.detail) : responseBody.detail || "Request failed.");
+            throw new Error(errMsg);
           }
-          appendMessage("assistant", JSON.stringify(responseBody, null, 2));
+          if (isChatMode && responseBody.answer != null) {
+            appendMessage("assistant", formatChatResponse(responseBody));
+          } else if (modeEl.value === "retrieve" && responseBody.retrieved_chunks != null) {
+            const lines = ["Retrieved " + responseBody.retrieved_chunks.length + " chunk(s):"];
+            (responseBody.retrieved_chunks || []).forEach((c, i) => {
+              lines.push("\n" + (i + 1) + ". " + (c.filename || "?") + (c.page != null ? " (page " + c.page + ")" : "") + " — " + (c.content || "").slice(0, 200) + (c.content && c.content.length > 200 ? "…" : ""));
+            });
+            appendMessage("assistant", lines.join("\n"));
+          } else {
+            appendMessage("assistant", JSON.stringify(responseBody, null, 2));
+          }
           setStatus(sessionStatusEl, "Response received.", "success");
           setStatus(sendStatusEl, "", "success");
           logEvent("info", "chat", "chat_response_received");
