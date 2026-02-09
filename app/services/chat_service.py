@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.models import ChatRequest, ChatResponse, WorkspaceConfig
 from app.services.embedding_service import EmbeddingService
 from app.services.retrieval_service import retrieve_chunks
+from app.services.system_config_service import get_openai_api_key
 
 PROMPT_PREVIEW_MAX = 800
 ANSWER_PREVIEW_MAX = 500
@@ -40,9 +41,16 @@ class ChatService:
             query_word_count=len(query.split()),
         )
 
+        openai_api_key = (await get_openai_api_key(session)) or self.settings.openai_api_key
+
         try:
             log_chat("CHAT_EMBEDDING_START", "Creating query embedding", embedding_model=config.embedding_model, use_local=config.use_local_embeddings)
-            embedding = (await self.embedding_service.embed_texts([query], config.embedding_model, use_local=config.use_local_embeddings))[0]
+            embedding = (await self.embedding_service.embed_texts(
+                [query],
+                config.embedding_model,
+                use_local=config.use_local_embeddings,
+                openai_api_key=openai_api_key,
+            ))[0]
             log_chat(
                 "CHAT_EMBEDDING_DONE",
                 "Query vector created",
@@ -113,7 +121,7 @@ class ChatService:
         try:
             request_content_len = sum(len(m.get("content", "")) for m in messages)
             log_chat("CHAT_OPENAI_CALL", f"Calling ChatGPT API (model={model})", model=model, temperature=temperature, max_tokens=max_tokens, message_count=len(messages), request_content_len=request_content_len)
-            response = await self._call_openai(messages, model, temperature, max_tokens)
+            response = await self._call_openai(messages, model, temperature, max_tokens, openai_api_key=openai_api_key)
         except Exception as e:
             log_chat("CHAT_ERROR", "Step failed: OpenAI API call", step="openai_call", error=str(e), error_type=type(e).__name__)
             raise
@@ -178,18 +186,25 @@ class ChatService:
             return "(too short to mask)"
         return f"{key[:7]}...{key[-4:]}"
 
-    async def _call_openai(self, messages: list[dict], model: str, temperature: float, max_tokens: int) -> dict:
-        key = self.settings.openai_api_key or ""
+    async def _call_openai(
+        self,
+        messages: list[dict],
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        openai_api_key: str | None = None,
+    ) -> dict:
+        key = (openai_api_key or self.settings.openai_api_key) or ""
         key_set = bool(key and key.strip())
         log_chat(
             "CHAT_OPENAI_KEY_CHECK",
-            "OpenAI API key from env/settings (masked)",
+            "OpenAI API key from DB/env (masked)",
             key_set=key_set,
             key_length=len(key.strip()) if key else 0,
             masked_key=self._mask_api_key(key),
         )
         if not key_set:
-            raise RuntimeError("OPENAI_API_KEY not configured")
+            raise RuntimeError("OPENAI_API_KEY not configured. Set it in System configurations.")
         payload = {
             "model": model,
             "messages": messages,
@@ -197,7 +212,7 @@ class ChatService:
             "max_tokens": max_tokens,
         }
         request_body_log = json.dumps({"model": model, "message_count": len(messages), "temperature": temperature, "max_tokens": max_tokens, "message_content_lens": [len(m.get("content", "")) for m in messages]}, ensure_ascii=False)
-        headers = {"Authorization": f"Bearer {self.settings.openai_api_key}"}
+        headers = {"Authorization": f"Bearer {key}"}
         try:
             async with httpx.AsyncClient(base_url=self.settings.openai_base_url, timeout=60) as client:
                 log_chat("CHAT_OPENAI_SEND", "Sending request to OpenAI", model=model, base_url=self.settings.openai_base_url, request_body=request_body_log)

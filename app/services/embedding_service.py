@@ -56,14 +56,22 @@ class EmbeddingService:
                 f"Embedding model dimension {actual} does not match configured vector dimension {expected}"
             )
 
-    async def embed_texts(self, texts: Sequence[str], model: str, batch_size: int | None = None, use_local: bool | None = None) -> list[list[float]]:
+    async def embed_texts(
+        self,
+        texts: Sequence[str],
+        model: str,
+        batch_size: int | None = None,
+        use_local: bool | None = None,
+        openai_api_key: str | None = None,
+    ) -> list[list[float]]:
         # Determine if we should use local embeddings: workspace config overrides global setting
         use_local_flag = use_local if use_local is not None else self.settings.use_local_embeddings
+        key = openai_api_key or self.settings.openai_api_key
         self.validate_dimension(model, use_local=use_local_flag)
         if not texts:
             return []
-        if not use_local_flag and not self.settings.openai_api_key:
-            raise RuntimeError("OPENAI_API_KEY not configured (or set use_local_embeddings=true for local embeddings)")
+        if not use_local_flag and not key:
+            raise RuntimeError("OPENAI_API_KEY not configured (set in System configurations or .env, or use local embeddings)")
         
         texts_list = list(texts)
         total_texts = len(texts_list)
@@ -88,7 +96,7 @@ class EmbeddingService:
             logger.debug(f"Processing {total_texts} texts in single batch (small file optimization)")
             if use_local_flag:
                 return await self._embed_batch_local(texts_list)
-            return await self._embed_batch(texts_list, model)
+            return await self._embed_batch(texts_list, model, key)
         
         # Process in batches for large documents
         logger.info(f"Processing {total_texts} texts in batches of {batch_size}")
@@ -107,7 +115,7 @@ class EmbeddingService:
             if use_local_flag:
                 embeddings = await self._embed_batch_local(batch)
             else:
-                embeddings = await self._embed_batch(batch, model)
+                embeddings = await self._embed_batch(batch, model, key)
             all_embeddings.extend(embeddings)
             
             batch_time = time.time() - batch_start
@@ -138,10 +146,11 @@ class EmbeddingService:
         )
         return embeddings
 
-    async def _embed_batch(self, texts: list[str], model: str) -> list[list[float]]:
+    async def _embed_batch(self, texts: list[str], model: str, openai_api_key: str | None = None) -> list[list[float]]:
         """Embed a single batch of texts."""
+        key = openai_api_key or self.settings.openai_api_key
         payload = {"input": texts, "model": model}
-        headers = {"Authorization": f"Bearer {self.settings.openai_api_key}"}
+        headers = {"Authorization": f"Bearer {key}"}
         
         # Optimize timeout based on batch size
         # Small batches (< 100): 30s, Medium (100-500): 60s, Large (> 500): 120s

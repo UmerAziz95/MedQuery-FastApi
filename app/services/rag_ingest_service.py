@@ -44,6 +44,7 @@ from app.core.crash_logger import crash_logger
 from app.core.ingestion_logger import log_ingestion, text_preview
 from app.models import Document, DocumentChunk, WorkspaceConfig
 from app.services.embedding_service import EmbeddingService
+from app.services.system_config_service import get_openai_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -467,6 +468,7 @@ class RagIngestService:
         Ingest PDF page-by-page: for each page extract text -> chunk -> embed (small batch) -> insert -> commit.
         Keeps memory bounded (never holds full doc + all chunks + all embeddings).
         """
+        openai_api_key = await get_openai_api_key(session)
         chunk_index = 0
         page_count = 0
         total_chunks = 0
@@ -653,7 +655,7 @@ class RagIngestService:
                     sys.stdout.flush()
                     # Embed this batch only (small batch = low memory)
                     batch_embeddings = await self.embedding_service.embed_texts(
-                        batch, config.embedding_model, batch_size=len(batch), use_local=config.use_local_embeddings
+                        batch, config.embedding_model, batch_size=len(batch), use_local=config.use_local_embeddings, openai_api_key=openai_api_key
                     )
                     log_ingestion(
                         "EMBED_BATCH_END",
@@ -1116,6 +1118,7 @@ class RagIngestService:
                 {"document_id": str(document.id), "chunk_count": len(all_chunks)},
             )
             
+            openai_api_key = await get_openai_api_key(session)
             embedding_start = time.time()
             try:
                 # Generate all embeddings at once (or in large batches if needed)
@@ -1123,7 +1126,8 @@ class RagIngestService:
                     all_chunks, 
                     config.embedding_model, 
                     batch_size=None,  # Let embedding service decide optimal batch size
-                    use_local=config.use_local_embeddings
+                    use_local=config.use_local_embeddings,
+                    openai_api_key=openai_api_key,
                 )
                 
                 embedding_time = time.time() - embedding_start

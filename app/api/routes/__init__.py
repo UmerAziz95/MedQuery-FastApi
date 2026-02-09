@@ -7,6 +7,7 @@ from app.api.routes.rag import router as rag_router
 from app.api.routes.chat import router as chat_router
 from app.api.routes.health import router as health_router
 from app.api.routes.dbview import router as dbview_router
+from app.api.routes.system_config_routes import router as system_config_router
 from app.api.routes.ui import router as ui_router
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "chat_router",
     "dbview_router",
     "health_router",
+    "system_config_router",
     "ui_router",
 ]

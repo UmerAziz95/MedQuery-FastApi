@@ -231,9 +231,22 @@
         <button id="save-preferences" type="button">Save preferences</button>
         <div class="status" id="preferences-status"></div>
       </section>
+
+      <section class="panel">
+        <h2>OpenAI API Key</h2>
+        <p class="status" style="margin-bottom: 12px;">Stored in database. Used for Chat and RAG when not using local embeddings.</p>
+        <label for="openai-api-key">API Key</label>
+        <input type="text" id="openai-api-key" placeholder="sk-proj-..." autocomplete="off" data-lpignore="true" data-form-type="other" />
+        <button id="save-openai-key" type="button">Save API key</button>
+        <div class="status" id="openai-key-status"></div>
+      </section>
     </main>
 
     <script>
+      const token = localStorage.getItem("adminToken");
+      if (!token) {
+        window.location.assign("/ui");
+      }
       const defaults = JSON.parse(localStorage.getItem("chatDefaults") || "{}");
       const preferences = JSON.parse(localStorage.getItem("chatPreferences") || "{}");
       const profileName = document.getElementById("profile-name");
@@ -248,6 +261,9 @@
       const temperatureInput = document.getElementById("default-temperature");
       const maxTokensInput = document.getElementById("default-max-tokens");
       const promptInput = document.getElementById("default-prompt");
+      const openaiKeyInput = document.getElementById("openai-api-key");
+      const openaiKeyStatus = document.getElementById("openai-key-status");
+      const saveOpenaiKeyBtn = document.getElementById("save-openai-key");
 
       businessInput.value = defaults.businessClientId || localStorage.getItem("adminBusinessId") || "";
       workspaceInput.value = defaults.workspaceId || "";
@@ -255,6 +271,34 @@
       temperatureInput.value = preferences.temperature ?? 0.2;
       maxTokensInput.value = preferences.maxTokens ?? 600;
       promptInput.value = preferences.promptEngineering || "";
+
+      const loadOpenaiKeyStatus = async () => {
+        if (!token) return;
+        try {
+          const res = await fetch("/api/admin/system-config/openai-api-key", {
+            headers: { Authorization: "Bearer " + token },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.set) {
+            openaiKeyInput.value = data.masked_key || "(saved)";
+            openaiKeyStatus.textContent = "Key saved. Enter a new value and Save to replace.";
+            openaiKeyStatus.className = "status success";
+          } else if (res.ok) {
+            openaiKeyInput.value = "";
+            openaiKeyStatus.textContent = "No API key set. Add one for Chat and RAG.";
+            openaiKeyStatus.className = "status";
+          } else {
+            openaiKeyInput.value = "";
+            openaiKeyStatus.textContent = data.detail || data.message || "Could not load status.";
+            openaiKeyStatus.className = "status error";
+          }
+        } catch (e) {
+          openaiKeyInput.value = "";
+          openaiKeyStatus.textContent = "Failed to load status.";
+          openaiKeyStatus.className = "status error";
+        }
+      };
+      loadOpenaiKeyStatus();
 
       const logEvent = (level, tag, action, details = "") => {
         const logStorageKey = "systemLogs";
@@ -302,6 +346,41 @@
         );
         setStatus(document.getElementById("preferences-status"), "Preferences saved.", "success");
         logEvent("info", "system-config", "preferences_saved");
+      });
+
+      saveOpenaiKeyBtn.addEventListener("click", async () => {
+        const value = openaiKeyInput.value.trim();
+        if (!value) {
+          setStatus(openaiKeyStatus, "Enter an API key.", "error");
+          return;
+        }
+        if (!token) {
+          setStatus(openaiKeyStatus, "Sign in to save.", "error");
+          return;
+        }
+        setStatus(openaiKeyStatus, "Saving...", "");
+        try {
+          const res = await fetch("/api/admin/system-config/openai-api-key", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + token,
+            },
+            body: JSON.stringify({ value }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok) {
+            setStatus(openaiKeyStatus, "API key saved.", "success");
+            await loadOpenaiKeyStatus();
+            logEvent("info", "system-config", "openai_key_saved");
+          } else {
+            const msg = data.detail || data.message || (typeof data.detail === "object" && data.detail.msg ? data.detail.msg : null) || "Failed to save.";
+            const errMsg = res.status === 401 ? "Session expired or invalid. Please sign in again." : res.status === 404 ? "API not found. Is the server updated?" : res.status === 500 ? (msg + " (Table system_config may be missing – run: docker compose exec api alembic upgrade head)") : msg;
+            setStatus(openaiKeyStatus, errMsg, "error");
+          }
+        } catch (e) {
+          setStatus(openaiKeyStatus, "Request failed: " + (e.message || "network error"), "error");
+        }
       });
 
       const email = localStorage.getItem("adminEmail") || "Admin";
