@@ -17,11 +17,9 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 60
 
     # Static key: validation_alias prevents .env OPENAI_API_KEY from overriding. Replace below with your full key (51+ chars).
-    openai_api_key: str | None = Field(
-        default="",
-        validation_alias="OPENAI_API_KEY_FROM_ENV",
-    )
-    openai_base_url: str = "https://api.openai.com/v1"
+   openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+
+    openai_base_url: str = "https://api.openai.com/v1" 
     default_embedding_model: str = "text-embedding-3-small"
     default_chat_model: str = "gpt-4.1-mini"
     vector_dimension: int = 384
