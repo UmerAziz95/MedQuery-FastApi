@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Static key: validation_alias prevents .env OPENAI_API_KEY from overriding. Replace below with your full key (51+ chars).
     openai_api_key: str | None = Field(
-        default="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",
+        default="",
         validation_alias="OPENAI_API_KEY_FROM_ENV",
     )
     openai_base_url: str = "https://api.openai.com/v1"
