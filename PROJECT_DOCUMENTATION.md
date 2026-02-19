@@ -102,6 +102,7 @@ All data is scoped by **business_client_id** and **workspace_id** (multi-tenant)
 | **Use local embeddings** | DB: **`workspace_config.use_local_embeddings`** | Per workspace |
 | **Embedding model (API)** | DB: **`workspace_config.embedding_model`** (e.g. text-embedding-3-small) | Per workspace |
 | **Chat model, temperature, max_tokens** | DB: **`workspace_config`** (chat_model_default, etc.) | Per workspace |
+| **Prompt engineering (system prompt)** | DB: **`workspace_config.prompt_engineering`** | Per workspace |
 | **RAG settings** (top_k, similarity_threshold, chunk size) | DB: **`workspace_config`** | Per workspace |
 
 ---

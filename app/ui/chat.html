@@ -290,6 +290,22 @@
         cursor: pointer;
       }
 
+      .secondary-btn {
+        flex-shrink: 0;
+        border: 1px solid var(--accent);
+        border-radius: 10px;
+        padding: 10px 14px;
+        background: transparent;
+        color: var(--accent);
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+
+      .secondary-btn:hover {
+        background: rgba(56, 189, 248, 0.15);
+      }
+
       .status {
         font-size: 12px;
         color: var(--muted);
@@ -374,9 +390,12 @@
             </div>
           </div>
           <div style="margin-top: 12px;">
-            <label for="prompt">Prompt Engineering</label>
-            <textarea id="prompt">You are a medical assistant. Provide concise answers.</textarea>
-            <div class="status" style="margin-top: 6px;">Chat mode: query is embedded → searched in RAG (business/workspace) → context + prompt + query sent to GPT → response shown here.</div>
+            <label for="prompt">Prompt Engineering (per workspace)</label>
+            <div style="display: flex; gap: 8px; align-items: flex-start;">
+              <textarea id="prompt" style="flex: 1;">You are a medical assistant. Provide concise answers.</textarea>
+              <button type="button" id="save-prompt" class="secondary-btn">Save to workspace</button>
+            </div>
+            <div class="status" id="prompt-status" style="margin-top: 6px;">Prompt is loaded per workspace. Edit and click Save to persist.</div>
           </div>
           <div style="margin-top: 12px;">
             <label for="chat-override">Chat Config Override (JSON)</label>
@@ -431,6 +450,19 @@
       const overrideEl = document.getElementById("chat-override");
       const modeEl = document.getElementById("mode");
 
+      const buildHeaders = () => {
+        const h = { "Content-Type": "application/json" };
+        if (token) h.Authorization = `Bearer ${token}`;
+        return h;
+      };
+
+      const setStatus = (node, message, type = "") => {
+        if (!node) return;
+        node.textContent = message;
+        node.classList.remove("error", "success");
+        if (type) node.classList.add(type);
+      };
+
       const defaults = JSON.parse(localStorage.getItem("chatDefaults") || "{}");
       const preferences = JSON.parse(localStorage.getItem("chatPreferences") || "{}");
       businessEl.value = defaults.businessClientId || localStorage.getItem("adminBusinessId") || "default";
@@ -438,7 +470,72 @@
       userEl.value = defaults.userId || "u123";
       temperatureEl.value = preferences.temperature ?? 0.2;
       maxTokensEl.value = preferences.maxTokens ?? 600;
-      promptEl.value = preferences.promptEngineering || promptEl.value;
+
+      const promptStatusEl = document.getElementById("prompt-status");
+      const savePromptBtn = document.getElementById("save-prompt");
+
+      const loadWorkspacePrompt = async () => {
+        const b = businessEl.value.trim();
+        const w = workspaceEl.value.trim();
+        if (!b || !w) return;
+        setStatus(promptStatusEl, "Loading prompt...");
+        try {
+          const res = await fetch(`/api/admin/businesses/${encodeURIComponent(b)}/workspaces/${encodeURIComponent(w)}/config`, { headers: buildHeaders() });
+          if (!res.ok) {
+            setStatus(promptStatusEl, "Could not load workspace config.", "error");
+            promptEl.value = preferences.promptEngineering || "You are a medical assistant. Provide concise answers.";
+            return;
+          }
+          const cfg = await res.json();
+          const stored = cfg?.prompt_engineering;
+          promptEl.value = typeof stored === "string" ? stored : (preferences.promptEngineering || "You are a medical assistant. Provide concise answers.");
+          setStatus(promptStatusEl, "Prompt loaded from workspace.", "success");
+        } catch (e) {
+          setStatus(promptStatusEl, "Could not load prompt: " + (e?.message || "Request failed"), "error");
+          promptEl.value = preferences.promptEngineering || "You are a medical assistant. Provide concise answers.";
+        }
+      };
+
+      const saveWorkspacePrompt = async () => {
+        const b = businessEl.value.trim();
+        const w = workspaceEl.value.trim();
+        if (!b || !w) {
+          setStatus(promptStatusEl, "Set Business and Workspace first.", "error");
+          return;
+        }
+        try {
+          const res = await fetch(`/api/admin/businesses/${encodeURIComponent(b)}/workspaces/${encodeURIComponent(w)}/config`, {
+            method: "GET",
+            headers: buildHeaders(),
+          });
+          if (!res.ok) {
+            setStatus(promptStatusEl, "Could not load workspace config.", "error");
+            return;
+          }
+          const cfg = await res.json();
+          const updated = { ...cfg, prompt_engineering: promptEl.value.trim() };
+          const putRes = await fetch(`/api/admin/businesses/${encodeURIComponent(b)}/workspaces/${encodeURIComponent(w)}/config`, {
+            method: "PUT",
+            headers: buildHeaders(),
+            body: JSON.stringify(updated),
+          });
+          if (!putRes.ok) {
+            const err = await putRes.json().catch(() => ({}));
+            setStatus(promptStatusEl, "Failed to save: " + (err.detail || putRes.statusText), "error");
+            return;
+          }
+          setStatus(promptStatusEl, "Prompt saved to workspace.", "success");
+          logEvent("info", "chat", "prompt_saved_to_workspace", `${b}/${w}`);
+        } catch (e) {
+          setStatus(promptStatusEl, "Error: " + (e.message || "Request failed"), "error");
+        }
+      };
+
+      businessEl.addEventListener("change", loadWorkspacePrompt);
+      workspaceEl.addEventListener("change", loadWorkspacePrompt);
+      savePromptBtn.addEventListener("click", saveWorkspacePrompt);
+
+      loadWorkspacePrompt();
 
       const email = localStorage.getItem("adminEmail") || "Admin";
       profileName.textContent = email;
@@ -463,14 +560,6 @@
           details,
         });
         localStorage.setItem(logStorageKey, JSON.stringify(logs.slice(0, 500)));
-      };
-
-      const setStatus = (node, message, type = "") => {
-        node.textContent = message;
-        node.classList.remove("error", "success");
-        if (type) {
-          node.classList.add(type);
-        }
       };
 
       const renderChats = () => {
@@ -551,16 +640,6 @@
         renderMessages();
       };
 
-      const buildHeaders = () => {
-        const headers = {
-          "Content-Type": "application/json",
-        };
-        if (token) {
-          headers.Authorization = `Bearer ${token}`;
-        }
-        return headers;
-      };
-
       const buildPayload = (query) => {
         const basePayload = {
           business_client_id: businessEl.value.trim(),
@@ -626,10 +705,7 @@
             setStatus(sendStatusEl, "Set Business and Workspace for RAG chat.", "error");
             return;
           }
-          if (!promptEl.value.trim()) {
-            setStatus(sendStatusEl, "Set Prompt Engineering (system prompt) for chat mode.", "error");
-            return;
-          }
+          // Prompt optional: API uses workspace config when not provided
         }
 
         if (!activeChatId) {

@@ -58,7 +58,21 @@ async def generate_chat(
         if not config:
             log_chat("CHAT_ERROR", "Workspace config not found", step="config_lookup", workspace_id=str(workspace.id))
             raise HTTPException(status_code=404, detail="Workspace config not found. Create or seed config for this workspace.")
-        log_chat("CHAT_CONFIG_FOUND", "Workspace config loaded", embedding_model=config.embedding_model, chat_model=config.chat_model_default)
+        config_prompt = (getattr(config, "prompt_engineering", None) or "").strip()
+        log_chat(
+            "CHAT_CONFIG_FOUND",
+            "Workspace config loaded",
+            embedding_model=config.embedding_model,
+            chat_model=config.chat_model_default,
+            prompt_from_db_len=len(config_prompt),
+        )
+
+        # Workspace config (DB) is primary; payload is override only when config is empty
+        prompt_engineering = (
+            config_prompt
+            or (payload.prompt_engineering or "").strip()
+            or "You are a medical assistant. Provide concise answers based on the context."
+        )
 
         service = ChatService()
         answer, sources, usage = await service.generate_response(
@@ -67,7 +81,7 @@ async def generate_chat(
             workspace_id=workspace.id,
             user_id=payload.user_id,
             query=payload.query,
-            prompt_engineering=payload.prompt_engineering,
+            prompt_engineering=prompt_engineering,
             config=config,
             override=payload.chat_config_override.model_dump() if payload.chat_config_override else None,
         )

@@ -12,6 +12,11 @@ class WorkspaceConfigUpdate(BaseModel):
     chat_model_default: str = Field("gpt-4.1-mini", example="gpt-4.1-mini")
     chat_temperature_default: float = Field(0.2, example=0.2)
     chat_max_tokens_default: int = Field(600, example=600)
+    prompt_engineering: str = Field(
+        "You are a medical assistant. Provide concise answers based on the context.",
+        example="You are a medical assistant. Provide concise answers based on the context.",
+        description="System prompt for chat per workspace (dynamic prompt engineering)",
+    )
 
 
 class WorkspaceConfigOut(WorkspaceConfigUpdate):
