@@ -1,0 +1,1348 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RAG Builder</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --panel: #111827;
+        --panel-2: #1f2937;
+        --panel-3: #0b1220;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --accent-2: #0ea5e9;
+        --success: #22c55e;
+        --border: #334155;
+        --error: #ef4444;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        padding: 20px 32px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 600;
+      }
+
+      header p {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .profile-menu {
+        position: relative;
+      }
+
+      .profile-button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 12px;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(56, 189, 248, 0.3);
+        display: grid;
+        place-items: center;
+        font-weight: 600;
+        color: var(--accent);
+      }
+
+      .dropdown {
+        position: absolute;
+        right: 0;
+        top: 48px;
+        min-width: 220px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45);
+        padding: 8px;
+        display: none;
+        z-index: 10;
+      }
+
+      .dropdown.open {
+        display: grid;
+        gap: 4px;
+      }
+
+      .dropdown a,
+      .dropdown button {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .dropdown a:hover,
+      .dropdown button:hover {
+        background: rgba(56, 189, 248, 0.12);
+      }
+
+      main {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 24px;
+        padding: 24px 32px 40px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+      }
+
+      label {
+        display: block;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      input,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        padding: 10px 12px;
+        background: var(--panel-2);
+        color: var(--text);
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+
+      input:focus,
+      select:focus {
+        outline: 2px solid rgba(56, 189, 248, 0.35);
+        border-color: rgba(56, 189, 248, 0.6);
+      }
+
+      button {
+        width: 100%;
+        border: none;
+        border-radius: 12px;
+        padding: 12px 16px;
+        background: var(--accent);
+        color: #0f172a;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+
+      button:hover {
+        background: var(--accent-2);
+        transform: translateY(-1px);
+      }
+
+      button.secondary {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .status {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .status.success {
+        color: var(--success);
+      }
+
+      .status.error {
+        color: var(--error);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      th {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.15);
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .overview-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+      }
+
+      .card {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .card h3 {
+        margin: 0;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .card p {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .empty-state {
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px dashed var(--border);
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .status-badge.success {
+        background: rgba(34, 197, 94, 0.2);
+        color: var(--success);
+      }
+
+      .status-badge.error {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--error);
+      }
+
+      .status-badge.processing {
+        background: rgba(56, 189, 248, 0.2);
+        color: var(--accent);
+        animation: pulse 2s infinite;
+      }
+      .status-badge.cancelled {
+        background-color: #888;
+        color: white;
+      }
+      .cancel-btn {
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        padding: 4px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        margin-left: 8px;
+      }
+      .cancel-btn:hover {
+        background-color: #c82333;
+      }
+      .cancel-btn:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+      }
+      .delete-btn {
+        background-color: #6c757d;
+        color: white;
+        border: none;
+        padding: 3px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 11px;
+      }
+      .delete-btn:hover {
+        background-color: #5a6268;
+      }
+      .delete-btn:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+      }
+
+      .rag-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: nowrap;
+      }
+      .view-chunks-btn {
+        background: var(--accent);
+        color: white;
+        border: none;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        cursor: pointer;
+        font-weight: 500;
+      }
+
+      .view-chunks-btn:hover {
+        background: var(--accent-2);
+      }
+
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal.open {
+        display: flex;
+      }
+
+      .modal-content {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+        max-width: 800px;
+        max-height: 80vh;
+        width: 90%;
+        overflow-y: auto;
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      .modal-header h3 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .close-btn {
+        background: transparent;
+        border: none;
+        color: var(--muted);
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+      }
+
+      .close-btn:hover {
+        background: var(--panel-2);
+        color: var(--text);
+      }
+
+      .chunk-item {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+
+      .chunk-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .chunk-content {
+        color: var(--text);
+        font-size: 13px;
+        line-height: 1.6;
+        max-height: 150px;
+        overflow-y: auto;
+      }
+
+      @media (max-width: 1024px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>RAG Builder</h1>
+        <p>Upload knowledge sources and monitor RAG coverage per business and workspace.</p>
+      </div>
+      <div class="profile-menu">
+        <button class="profile-button" id="profile-toggle" type="button">
+          <span class="avatar" id="profile-avatar">A</span>
+          <span id="profile-name">Admin</span>
+        </button>
+        <div class="dropdown" id="profile-dropdown">
+          <a href="/profile">Profile</a>
+          <a href="/chat">Chat workspace</a>
+          <a href="/assignments">Assignments</a>
+          <a href="/database-overview">Database overview</a>
+          <a href="/system-config">System configurations</a>
+          <a href="/system-logs">System logs</a>
+          <button type="button" id="logout">Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <aside class="panel stack">
+        <div>
+          <h2>RAG Upload</h2>
+          <p class="status">Associate documents with a business/tenant and workspace.</p>
+        </div>
+
+        <label for="business-select">Business / Tenant</label>
+        <select id="business-select"></select>
+
+        <label for="workspace-select">Workspace</label>
+        <select id="workspace-select"></select>
+
+        <label for="rag-file">Document File (PDF/TXT)</label>
+        <input id="rag-file" type="file" accept=".pdf,.txt" />
+
+        <label for="chunk-words">Chunk Words</label>
+        <input id="chunk-words" type="number" min="100" placeholder="400" />
+
+        <label for="overlap-words">Overlap Words</label>
+        <input id="overlap-words" type="number" min="0" placeholder="40" />
+
+        <button id="upload-button" type="button">Upload RAG Document</button>
+        <div class="status" id="upload-status">Awaiting upload.</div>
+        <div id="cancel-upload-container" style="display: none; margin-top: 10px;"></div>
+
+        <button id="refresh-overview" class="secondary" type="button">Refresh Overview</button>
+        <div class="status" id="overview-status">Overview is ready.</div>
+      </aside>
+
+      <section class="stack">
+        <div class="panel">
+          <h2>RAG Coverage Overview</h2>
+          <div class="overview-grid" id="overview-grid"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Workspace RAG Details</h2>
+          <p class="status" id="workspace-status">Select a workspace to load documents.</p>
+          <div id="documents-table"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Chunks Viewer Modal -->
+    <div class="modal" id="chunks-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="chunks-modal-title">Document Chunks</h3>
+          <button class="close-btn" onclick="closeChunksModal()">&times;</button>
+        </div>
+        <div id="chunks-content"></div>
+      </div>
+    </div>
+
+    <script>
+      const token = localStorage.getItem("adminToken");
+      if (!token) {
+        window.location.assign("/ui");
+      }
+
+      const businessSelect = document.getElementById("business-select");
+      const workspaceSelect = document.getElementById("workspace-select");
+      const uploadButton = document.getElementById("upload-button");
+      const uploadStatus = document.getElementById("upload-status");
+      const overviewGrid = document.getElementById("overview-grid");
+      const overviewStatus = document.getElementById("overview-status");
+      const workspaceStatus = document.getElementById("workspace-status");
+      const documentsTable = document.getElementById("documents-table");
+      const refreshOverviewButton = document.getElementById("refresh-overview");
+      const profileName = document.getElementById("profile-name");
+      const profileAvatar = document.getElementById("profile-avatar");
+      const profileToggle = document.getElementById("profile-toggle");
+      const profileDropdown = document.getElementById("profile-dropdown");
+      const logoutButton = document.getElementById("logout");
+
+      const chunkWordsInput = document.getElementById("chunk-words");
+      const overlapWordsInput = document.getElementById("overlap-words");
+      const ragFileInput = document.getElementById("rag-file");
+
+      let businesses = [];
+      let workspaces = [];
+
+      const logEvent = (level, tag, action, details = "") => {
+        const logStorageKey = "systemLogs";
+        const logs = JSON.parse(localStorage.getItem(logStorageKey) || "[]");
+        logs.unshift({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          level,
+          tag,
+          action,
+          details,
+        });
+        localStorage.setItem(logStorageKey, JSON.stringify(logs.slice(0, 500)));
+      };
+
+      const setStatus = (node, message, type = "", preserveChildren = false) => {
+        // If preserveChildren is true, preserve buttons and other child elements
+        if (preserveChildren) {
+          // Find and preserve buttons
+          const buttons = Array.from(node.querySelectorAll('button'));
+          // Clear content but preserve buttons
+          const tempContainer = document.createDocumentFragment();
+          buttons.forEach(btn => tempContainer.appendChild(btn.cloneNode(true)));
+          
+          // Clear node
+          node.textContent = '';
+          
+          // Add message
+          const messageSpan = document.createElement('span');
+          messageSpan.textContent = message;
+          node.appendChild(messageSpan);
+          
+          // Restore buttons
+          Array.from(tempContainer.children).forEach(btn => node.appendChild(btn));
+        } else {
+          node.textContent = message;
+        }
+        node.classList.remove("error", "success");
+        if (type) {
+          node.classList.add(type);
+        }
+      };
+
+      const apiFetch = async (path, options = {}) => {
+        // Create an AbortController for timeout handling
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), options.timeout || 300000); // 5 minutes default
+        
+        try {
+          const response = await fetch(path, {
+            ...options,
+            signal: controller.signal,
+            headers: {
+              ...(options.headers || {}),
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            const errorBody = await response.json().catch(() => ({}));
+            const errorMessage = errorBody.detail || errorBody.message || `HTTP ${response.status}: ${response.statusText}`;
+            throw new Error(errorMessage);
+          }
+          return response.json();
+        } catch (error) {
+          clearTimeout(timeoutId);
+          if (error.name === 'AbortError') {
+            throw new Error('Request timeout: The upload is taking too long. The document may be processing in the background. Please check the documents list.');
+          }
+          if (error.message) {
+            throw error;
+          }
+          throw new Error(`Network error: ${error.message || 'Failed to fetch'}`);
+        }
+      };
+
+      const populateBusinesses = () => {
+        if (!businesses.length) {
+          businessSelect.innerHTML = '<option value="">No businesses available</option>';
+          workspaceSelect.innerHTML = '<option value="">No workspaces available</option>';
+          return;
+        }
+
+        businessSelect.innerHTML = businesses
+          .map(
+            (business) =>
+              `<option value="${business.business_client_id}">${business.name} (${business.business_client_id})</option>`
+          )
+          .join("");
+      };
+
+      const populateWorkspaces = () => {
+        if (!workspaces.length) {
+          workspaceSelect.innerHTML = '<option value="">No workspaces available</option>';
+          return;
+        }
+
+        workspaceSelect.innerHTML = workspaces
+          .map(
+            (workspace) =>
+              `<option value="${workspace.workspace_id}">${workspace.name} (${workspace.workspace_id})</option>`
+          )
+          .join("");
+      };
+
+      const loadBusinesses = async () => {
+        try {
+          businesses = await apiFetch("/api/admin/businesses");
+          populateBusinesses();
+          const preferredBusiness = localStorage.getItem("adminBusinessId");
+          if (preferredBusiness) {
+            businessSelect.value = preferredBusiness;
+          }
+          if (businesses.length) {
+            await loadWorkspaces(businessSelect.value || businesses[0].business_client_id);
+          }
+          logEvent("info", "rag", "businesses_loaded", `count=${businesses.length}`);
+        } catch (error) {
+          populateBusinesses();
+          setStatus(overviewStatus, `Unable to load businesses: ${error.message}`, "error");
+          logEvent("error", "rag", "businesses_load_failed", error.message);
+        }
+      };
+
+      const loadWorkspaces = async (businessClientId) => {
+        if (!businessClientId) {
+          workspaceSelect.innerHTML = '<option value="">Select a business first</option>';
+          return;
+        }
+        try {
+          workspaces = await apiFetch(`/api/admin/businesses/${businessClientId}/workspaces`);
+          populateWorkspaces();
+          if (workspaces.length) {
+            workspaceSelect.value = workspaces[0].workspace_id;
+            await loadDocuments();
+          }
+          logEvent("info", "rag", "workspaces_loaded", `business=${businessClientId} count=${workspaces.length}`);
+        } catch (error) {
+          workspaceSelect.innerHTML = '<option value="">Workspaces unavailable</option>';
+          setStatus(workspaceStatus, `Unable to load workspaces: ${error.message}`, "error");
+          logEvent("error", "rag", "workspaces_load_failed", error.message);
+        }
+      };
+
+      let documentsRefreshInterval = null;
+
+      const loadDocuments = async (showStatus = true) => {
+        const businessClientId = businessSelect.value;
+        const workspaceId = workspaceSelect.value;
+        if (!businessClientId || !workspaceId) {
+          documentsTable.innerHTML = '<div class="empty-state">Select a business and workspace.</div>';
+          if (documentsRefreshInterval) {
+            clearInterval(documentsRefreshInterval);
+            documentsRefreshInterval = null;
+          }
+          return;
+        }
+        if (showStatus) {
+          setStatus(workspaceStatus, `Loading RAG documents for ${workspaceId}...`);
+        }
+        try {
+          const documents = await apiFetch(
+            `/api/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents`
+          );
+          if (showStatus) {
+            setStatus(workspaceStatus, "", "success");
+          }
+          if (!documents.length) {
+            documentsTable.innerHTML = '<div class="empty-state">No RAG documents found.</div>';
+            if (documentsRefreshInterval) {
+              clearInterval(documentsRefreshInterval);
+              documentsRefreshInterval = null;
+            }
+            return;
+          }
+          
+          // Check if any documents are still processing
+          const hasProcessing = documents.some(doc => doc.status === "processing");
+          
+          // Auto-refresh if there are processing documents
+          if (hasProcessing && !documentsRefreshInterval) {
+            documentsRefreshInterval = setInterval(() => {
+              loadDocuments(false); // Refresh without status message
+            }, 5000); // Refresh every 5 seconds
+          } else if (!hasProcessing && documentsRefreshInterval) {
+            // Stop auto-refresh when all documents are done
+            clearInterval(documentsRefreshInterval);
+            documentsRefreshInterval = null;
+          }
+          documentsTable.innerHTML = `
+            <table>
+              <thead>
+                <tr>
+                  <th>Filename</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Chunks</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${documents
+                  .map(
+                    (document) => {
+                      // Normalize status - treat "cancelling" as "cancelled" for display
+                      const normalizedStatus = document.status === "cancelling" ? "cancelled" : document.status;
+                      
+                      const statusClass = normalizedStatus === "indexed" ? "success" : 
+                                         normalizedStatus === "failed" ? "error" : 
+                                         normalizedStatus === "processing" ? "processing" :
+                                         normalizedStatus === "cancelled" ? "cancelled" : "";
+                      const statusDisplay = normalizedStatus === "processing" ? 
+                        `<span class="status-badge ${statusClass}">Processing...</span>` :
+                        normalizedStatus === "indexed" ? 
+                        `<span class="status-badge ${statusClass}">✓ Indexed</span>` :
+                        normalizedStatus === "failed" ? 
+                        `<span class="status-badge ${statusClass}">✗ Failed</span>` :
+                        normalizedStatus === "cancelled" ?
+                        `<span class="status-badge ${statusClass}">⊘ Cancelled</span>` :
+                        `<span class="status-badge">${normalizedStatus}</span>`;
+                      
+                      const chunkCount = document.chunk_count !== null && document.chunk_count !== undefined 
+                        ? document.chunk_count 
+                        : normalizedStatus === "processing" ? "..." : "0";
+                      
+                      return `
+                        <tr>
+                          <td>${document.filename}</td>
+                          <td>${document.file_type.toUpperCase()}</td>
+                          <td>${statusDisplay}</td>
+                          <td>${chunkCount}</td>
+                          <td>
+                            ${normalizedStatus === "indexed" ? 
+                              `<span class="rag-actions"><button class="view-chunks-btn" onclick="viewChunks('${document.id}', '${businessClientId}', '${workspaceId}')">View Chunks</button><button class="delete-btn" onclick="deleteDocument('${document.id}', '${businessClientId}', '${workspaceId}')" id="delete-btn-${document.id}">Delete</button></span>` : 
+                              normalizedStatus === "processing" ?
+                              `<button class="cancel-btn" onclick="cancelDocument('${document.id}', '${businessClientId}', '${workspaceId}')" id="cancel-btn-${document.id}">Cancel</button>` :
+                              normalizedStatus === "cancelled" || normalizedStatus === "failed" ?
+                              `<span class="rag-actions"><button class="delete-btn" onclick="deleteDocument('${document.id}', '${businessClientId}', '${workspaceId}')" id="delete-btn-${document.id}">Delete</button></span>` :
+                              ""}
+                          </td>
+                        </tr>
+                      `;
+                    }
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          `;
+          logEvent(
+            "info",
+            "rag",
+            "documents_loaded",
+            `business=${businessClientId} workspace=${workspaceId} count=${documents.length}`
+          );
+        } catch (error) {
+          documentsTable.innerHTML = '<div class="empty-state">Unable to load documents.</div>';
+          setStatus(workspaceStatus, `Unable to load documents: ${error.message}`, "error");
+          logEvent("error", "rag", "documents_load_failed", error.message);
+        }
+      };
+
+      const uploadDocument = async () => {
+        const businessClientId = businessSelect.value;
+        const workspaceId = workspaceSelect.value;
+        const file = ragFileInput.files[0];
+        if (!businessClientId || !workspaceId) {
+          setStatus(uploadStatus, "Select a business and workspace.", "error");
+          logEvent("warning", "rag", "upload_validation_failed", "Missing business/workspace.");
+          return;
+        }
+        if (!file) {
+          setStatus(uploadStatus, "Select a PDF or TXT file.", "error");
+          logEvent("warning", "rag", "upload_validation_failed", "Missing file.");
+          return;
+        }
+        const formData = new FormData();
+        formData.append("file", file);
+        if (chunkWordsInput.value) {
+          formData.append("chunk_words", chunkWordsInput.value);
+        }
+        if (overlapWordsInput.value) {
+          formData.append("overlap_words", overlapWordsInput.value);
+        }
+        // Optimize timeout based on file size
+        // Small files are processed synchronously, so they need longer timeout
+        const fileSizeKB = file.size / 1024;
+        let timeout, statusMessage;
+        if (fileSizeKB < 100) {
+          // Very small files - processed synchronously, allow up to 2 minutes
+          timeout = 120000; // 2 minutes for very small files (< 100KB) - synchronous processing
+          statusMessage = "Processing small file synchronously...";
+        } else if (fileSizeKB < 1000) {
+          // Small-medium files - may be synchronous or background
+          timeout = 180000; // 3 minutes for small files (< 1MB)
+          statusMessage = "Processing document...";
+        } else {
+          // Large files - always background, shorter timeout for upload
+          timeout = 60000; // 1 minute for upload (processing happens in background)
+          statusMessage = "Uploading large document... Processing will continue in background.";
+        }
+        
+        setStatus(uploadStatus, statusMessage);
+        let documentId = null;
+        try {
+          // Upload file - small files processed synchronously, large files in background
+          const result = await apiFetch(
+            `/api/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents/upload`,
+            {
+              method: "POST",
+              body: formData,
+              timeout: timeout, // Dynamic timeout based on file size
+            }
+          );
+          
+          documentId = result.document_id;
+          
+          // Check if processing completed synchronously
+          if (result.status === "indexed") {
+            setStatus(uploadStatus, `Document indexed successfully! ${result.chunk_count || 0} chunks created.`, "success");
+            ragFileInput.value = "";
+            await loadDocuments();
+            await loadOverview();
+            logEvent(
+              "info",
+              "rag",
+              "document_indexed",
+              `document_id=${documentId} file=${file.name} chunks=${result.chunk_count || 0}`
+            );
+            return;
+          }
+          
+          ragFileInput.value = "";
+          
+          logEvent(
+            "info",
+            "rag",
+            "document_upload_started",
+            `business=${businessClientId} workspace=${workspaceId} file=${file.name} document_id=${documentId} status=${result.status}`
+          );
+          
+          // Poll for status updates (only if still processing)
+          if (result.status === "processing") {
+            let pollingCancelled = false;
+            let pollInterval = null;
+            
+            // Add cancel button to upload status immediately
+            const cancelBtn = document.createElement("button");
+            cancelBtn.className = "cancel-btn";
+            cancelBtn.textContent = "Cancel Processing";
+            cancelBtn.style.marginLeft = "10px";
+            const handleCancel = async () => {
+              pollingCancelled = true;
+              if (pollInterval) clearTimeout(pollInterval);
+              // Disable all cancel buttons
+              const allCancelBtns = document.querySelectorAll('.cancel-btn');
+              allCancelBtns.forEach(btn => {
+                btn.disabled = true;
+                btn.textContent = "Cancelling...";
+              });
+              try {
+                await cancelDocument(documentId, businessClientId, workspaceId);
+                setStatus(uploadStatus, "Cancellation requested. Processing will stop at the next checkpoint.", "success", true);
+                const cancelContainer = document.getElementById("cancel-upload-container");
+                if (cancelContainer) cancelContainer.style.display = "none";
+                await loadDocuments();
+              } catch (error) {
+                setStatus(uploadStatus, `Failed to cancel: ${error.message}`, "error", true);
+                allCancelBtns.forEach(btn => {
+                  btn.disabled = false;
+                  btn.textContent = "Cancel Processing";
+                });
+              }
+            };
+            
+            cancelBtn.onclick = handleCancel;
+            
+            // Set initial status message and add cancel button
+            if (fileSizeKB < 100) {
+              setStatus(uploadStatus, "Processing small file... This should complete quickly.", "success");
+            } else {
+              setStatus(uploadStatus, "File uploaded. Processing in background...", "success");
+            }
+            
+            // Add cancel button to both upload status and a dedicated container for better visibility
+            const cancelContainer = document.getElementById("cancel-upload-container");
+            cancelContainer.style.display = "block";
+            cancelContainer.innerHTML = "";
+            const cancelBtnClone = cancelBtn.cloneNode(true);
+            cancelBtnClone.onclick = handleCancel; // Use the same handler
+            cancelContainer.appendChild(cancelBtnClone);
+            
+            // Also add to status for inline visibility
+            uploadStatus.appendChild(cancelBtn);
+            
+            const pollStatus = async () => {
+            const maxAttempts = 120; // 10 minutes max (5s intervals)
+            let attempts = 0;
+            
+            const checkStatus = async () => {
+              if (pollingCancelled) return true;
+              
+              try {
+                const doc = await apiFetch(
+                  `/api/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents/${documentId}`,
+                  { timeout: 10000 }
+                );
+                
+                if (doc.status === "indexed") {
+                  const cancelContainer = document.getElementById("cancel-upload-container");
+                  if (cancelContainer) cancelContainer.style.display = "none";
+                  if (cancelBtn.parentNode) cancelBtn.remove();
+                  setStatus(uploadStatus, `Document indexed successfully! ${doc.chunk_count} chunks created.`, "success");
+                  await loadDocuments();
+                  await loadOverview();
+                  logEvent(
+                    "info",
+                    "rag",
+                    "document_indexed",
+                    `document_id=${documentId} file=${file.name} chunks=${doc.chunk_count}`
+                  );
+                  return true;
+                } else if (doc.status === "failed") {
+                  const cancelContainer = document.getElementById("cancel-upload-container");
+                  if (cancelContainer) cancelContainer.style.display = "none";
+                  if (cancelBtn.parentNode) cancelBtn.remove();
+                  setStatus(uploadStatus, `Processing failed: ${doc.meta_json || "Unknown error"}`, "error");
+                  await loadDocuments();
+                  logEvent("error", "rag", "document_processing_failed", `document_id=${documentId} error=${doc.meta_json}`);
+                  return true;
+                } else if (doc.status === "cancelled") {
+                  const cancelContainer = document.getElementById("cancel-upload-container");
+                  if (cancelContainer) cancelContainer.style.display = "none";
+                  if (cancelBtn.parentNode) cancelBtn.remove();
+                  setStatus(uploadStatus, "Processing cancelled.", "success");
+                  await loadDocuments();
+                  logEvent("info", "rag", "document_cancelled", `document_id=${documentId}`);
+                  return true;
+                } else if (doc.status === "processing") {
+                  attempts++;
+                  if (attempts >= maxAttempts) {
+                    const cancelContainer = document.getElementById("cancel-upload-container");
+                    if (cancelContainer) cancelContainer.style.display = "none";
+                    if (cancelBtn.parentNode) cancelBtn.remove();
+                    setStatus(uploadStatus, "Processing is taking longer than expected. Check documents list for status.", "error");
+                    await loadDocuments();
+                    return true;
+                  }
+                  // Show progress with chunk count if available
+                  const chunkInfo = doc.chunk_count > 0 ? ` (${doc.chunk_count} chunks so far)` : "";
+                  setStatus(uploadStatus, `Processing... ${chunkInfo} (${attempts * 5}s elapsed)`, "", true);
+                  // Refresh documents list to show updated chunk count
+                  if (attempts % 3 === 0) { // Refresh every 15 seconds
+                    await loadDocuments();
+                  }
+                  if (!pollingCancelled) {
+                    pollInterval = setTimeout(checkStatus, 5000); // Check every 5 seconds
+                  }
+                  return false;
+                }
+              } catch (error) {
+                if (pollingCancelled) return true;
+                attempts++;
+                if (attempts >= maxAttempts) {
+                  const cancelContainer = document.getElementById("cancel-upload-container");
+                  if (cancelContainer) cancelContainer.style.display = "none";
+                  if (cancelBtn.parentNode) cancelBtn.remove();
+                  setStatus(uploadStatus, "Unable to check status. Please refresh documents list.", "error");
+                  await loadDocuments();
+                  return true;
+                }
+                if (!pollingCancelled) {
+                  pollInterval = setTimeout(checkStatus, 5000);
+                }
+                return false;
+              }
+            };
+            
+            // Start polling after 2 seconds
+            pollInterval = setTimeout(checkStatus, 2000);
+          };
+          
+          await pollStatus();
+          }
+          
+        } catch (error) {
+          const errorMsg = error.message || "Unknown error occurred";
+          setStatus(uploadStatus, `Upload failed: ${errorMsg}`, "error");
+          logEvent("error", "rag", "document_upload_failed", `${errorMsg} | file=${file.name} size=${file.size}`);
+          console.error("Upload error details:", error);
+          // Still try to load documents in case upload partially succeeded
+          await loadDocuments();
+        }
+      };
+
+      const loadOverview = async () => {
+        overviewGrid.innerHTML = "";
+        setStatus(overviewStatus, "Loading overview...");
+        try {
+          const overviewItems = await Promise.all(
+            businesses.map(async (business) => {
+              const workspaces = await apiFetch(
+                `/api/admin/businesses/${business.business_client_id}/workspaces`
+              );
+              const workspaceSummaries = await Promise.all(
+                workspaces.map(async (workspace) => {
+                  const docs = await apiFetch(
+                    `/api/admin/businesses/${business.business_client_id}/workspaces/${workspace.workspace_id}/documents`
+                  );
+                  return {
+                    workspace: workspace.workspace_id,
+                    name: workspace.name,
+                    count: docs.length,
+                  };
+                })
+              );
+              const totalDocs = workspaceSummaries.reduce((sum, entry) => sum + entry.count, 0);
+              return {
+                business: business.business_client_id,
+                name: business.name,
+                totalDocs,
+                workspaceSummaries,
+              };
+            })
+          );
+
+          if (!overviewItems.length) {
+            overviewGrid.innerHTML = '<div class="empty-state">No businesses available.</div>';
+            setStatus(overviewStatus, "No businesses found.", "error");
+            return;
+          }
+
+          overviewGrid.innerHTML = overviewItems
+            .map(
+              (item) => `
+                <div class="card">
+                  <h3>${item.name} (${item.business})</h3>
+                  <p>${item.totalDocs} RAG documents</p>
+                  <div class="status">
+                    ${item.workspaceSummaries
+                      .map(
+                        (workspace) =>
+                          `${workspace.name} (${workspace.workspace}): ${workspace.count}`
+                      )
+                      .join("<br />")}
+                  </div>
+                </div>
+              `
+            )
+            .join("");
+          setStatus(overviewStatus, "Overview updated.", "success");
+          logEvent("info", "rag", "overview_loaded", `businesses=${overviewItems.length}`);
+        } catch (error) {
+          overviewGrid.innerHTML = '<div class="empty-state">Unable to load overview.</div>';
+          setStatus(overviewStatus, `Overview failed: ${error.message}`, "error");
+          logEvent("error", "rag", "overview_failed", error.message);
+        }
+      };
+
+      businessSelect.addEventListener("change", async () => {
+        await loadWorkspaces(businessSelect.value);
+        await loadOverview();
+        logEvent("info", "rag", "business_selected", businessSelect.value);
+      });
+
+      workspaceSelect.addEventListener("change", loadDocuments);
+      uploadButton.addEventListener("click", uploadDocument);
+
+      // Cancel document function - can be called from upload area or documents table
+      const cancelDocument = async (documentId, businessClientId, workspaceId) => {
+        // Find and disable the cancel button for immediate feedback
+        const cancelBtn = document.querySelector(`button[onclick*="cancelDocument('${documentId}'"]`) || 
+                         document.querySelector(`#cancel-btn-${documentId}`);
+        let originalText = "Cancel";
+        if (cancelBtn) {
+          originalText = cancelBtn.textContent;
+          cancelBtn.disabled = true;
+          cancelBtn.textContent = "Cancelling...";
+        }
+        
+        try {
+          const result = await apiFetch(
+            `/api/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents/${documentId}/cancel`,
+            {
+              method: "POST",
+              timeout: 10000,
+            }
+          );
+          
+          // Refresh documents list immediately to show cancelled status
+          await loadDocuments();
+          
+          // Show success message
+          if (result.status === "cancellation_requested" || result.status === "already_cancelled") {
+            // Document is now cancelled - no alert needed, just refresh
+            logEvent("info", "rag", "document_cancellation_requested", `document_id=${documentId}`);
+            
+            // Update upload status if it exists and is visible
+            const cancelContainer = document.getElementById("cancel-upload-container");
+            if (cancelContainer && cancelContainer.style.display !== "none") {
+              setStatus(uploadStatus, "Document cancelled successfully.", "success", true);
+            }
+          } else if (result.status === "cannot_cancel") {
+            alert(result.message || "Cannot cancel this document.");
+            if (cancelBtn) {
+              cancelBtn.disabled = false;
+              cancelBtn.textContent = originalText;
+            }
+            return result;
+          } else {
+            // Other status - already refreshed above
+          }
+          
+          return result;
+        } catch (error) {
+          const errorMsg = error.message || "Unknown error";
+          alert(`Failed to cancel document: ${errorMsg}`);
+          
+          // Restore button state
+          if (cancelBtn) {
+            cancelBtn.disabled = false;
+            cancelBtn.textContent = originalText;
+          }
+          
+          // Update upload status if visible
+          const cancelContainer = document.getElementById("cancel-upload-container");
+          if (cancelContainer && cancelContainer.style.display !== "none") {
+            setStatus(uploadStatus, `Failed to cancel: ${errorMsg}`, "error", true);
+          }
+          logEvent("error", "rag", "document_cancel_failed", `document_id=${documentId} error=${errorMsg}`);
+          throw error;
+        }
+      };
+
+      window.cancelDocument = cancelDocument;
+      
+      // Delete document function
+      const deleteDocument = async (documentId, businessClientId, workspaceId) => {
+        // Find and disable the delete button for immediate feedback
+        const deleteBtn = document.querySelector(`#delete-btn-${documentId}`) ||
+                         document.querySelector(`button[onclick*="deleteDocument('${documentId}'"]`);
+        let originalText = "Delete";
+        if (deleteBtn) {
+          originalText = deleteBtn.textContent;
+          deleteBtn.disabled = true;
+          deleteBtn.textContent = "Deleting...";
+        }
+        
+        // Confirm deletion
+        if (!confirm("Are you sure you want to delete this document? This will permanently delete the document and all its chunks from the RAG system.")) {
+          if (deleteBtn) {
+            deleteBtn.disabled = false;
+            deleteBtn.textContent = originalText;
+          }
+          return;
+        }
+        
+        try {
+          const result = await apiFetch(
+            `/api/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents/${documentId}`,
+            {
+              method: "DELETE",
+              timeout: 10000,
+            }
+          );
+          
+          // Show success message
+          if (result.status === "deleted") {
+            logEvent("info", "rag", "document_deleted", `document_id=${documentId}`);
+            
+            // Refresh documents list to remove deleted document
+            await loadDocuments();
+            await loadOverview(); // Refresh overview as well
+            
+            // Show success message
+            const cancelContainer = document.getElementById("cancel-upload-container");
+            if (cancelContainer && cancelContainer.style.display !== "none") {
+              setStatus(uploadStatus, "Document deleted successfully.", "success", true);
+            }
+          } else {
+            throw new Error(result.message || "Unknown error during deletion");
+          }
+        } catch (error) {
+          const errorMsg = error.message || "Unknown error";
+          alert(`Failed to delete document: ${errorMsg}`);
+          
+          // Restore button state
+          if (deleteBtn) {
+            deleteBtn.disabled = false;
+            deleteBtn.textContent = originalText;
+          }
+          
+          logEvent("error", "rag", "document_delete_failed", `document_id=${documentId} error=${errorMsg}`);
+          throw error;
+        }
+      };
+      
+      window.deleteDocument = deleteDocument;
+      
+      window.viewChunks = async (documentId, businessClientId, workspaceId) => {
+        const modal = document.getElementById("chunks-modal");
+        const content = document.getElementById("chunks-content");
+        const title = document.getElementById("chunks-modal-title");
+        
+        modal.classList.add("open");
+        content.innerHTML = '<div class="empty-state">Loading chunks...</div>';
+        
+        try {
+          const chunks = await apiFetch(
+            `/api/admin/businesses/${businessClientId}/workspaces/${workspaceId}/documents/${documentId}/chunks?limit=100`
+          );
+          
+          if (!chunks.length) {
+            content.innerHTML = '<div class="empty-state">No chunks found for this document.</div>';
+            return;
+          }
+          
+          title.textContent = `Document Chunks (${chunks.length} total)`;
+          content.innerHTML = chunks.map((chunk, idx) => `
+            <div class="chunk-item">
+              <div class="chunk-header">
+                <span>Chunk #${chunk.chunk_index + 1}${chunk.page_number ? ` | Page ${chunk.page_number}` : ""}</span>
+                <span>ID: ${chunk.id.substring(0, 8)}...</span>
+              </div>
+              <div class="chunk-content">${chunk.content.substring(0, 500)}${chunk.content.length > 500 ? "..." : ""}</div>
+            </div>
+          `).join("");
+          
+          logEvent("info", "rag", "chunks_viewed", `document_id=${documentId} chunks=${chunks.length}`);
+        } catch (error) {
+          content.innerHTML = `<div class="empty-state">Error loading chunks: ${error.message}</div>`;
+          logEvent("error", "rag", "chunks_load_failed", `document_id=${documentId} error=${error.message}`);
+        }
+      };
+
+      window.closeChunksModal = () => {
+        document.getElementById("chunks-modal").classList.remove("open");
+      };
+
+      // Close modal on outside click
+      document.getElementById("chunks-modal").addEventListener("click", (e) => {
+        if (e.target.id === "chunks-modal") {
+          window.closeChunksModal();
+        }
+      });
+      refreshOverviewButton.addEventListener("click", loadOverview);
+
+      const email = localStorage.getItem("adminEmail") || "Admin";
+      profileName.textContent = email;
+      profileAvatar.textContent = email.charAt(0).toUpperCase();
+
+      profileToggle.addEventListener("click", () => {
+        profileDropdown.classList.toggle("open");
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!profileToggle.contains(event.target) && !profileDropdown.contains(event.target)) {
+          profileDropdown.classList.remove("open");
+        }
+      });
+
+      logoutButton.addEventListener("click", () => {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminBusinessId");
+        localStorage.removeItem("adminEmail");
+        localStorage.removeItem("adminLoginAt");
+        logEvent("info", "auth", "logout");
+        window.location.assign("/ui");
+      });
+
+      window.addEventListener("error", (event) => {
+        logEvent("error", "system", "window_error", event.message || "Unexpected error");
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        logEvent("error", "system", "unhandled_rejection", event.reason?.message || "Unhandled promise rejection");
+      });
+
+      loadBusinesses().then(loadOverview);
+    </script>
+  </body>
+</html>

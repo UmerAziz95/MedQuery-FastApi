@@ -7,6 +7,7 @@ from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.models.chat_request import ChatRequest
 from app.models.chat_response import ChatResponse
+from app.models.system_config import SystemConfig
 
 __all__ = [
     "Base",
@@ -18,4 +19,5 @@ __all__ = [
     "DocumentChunk",
     "ChatRequest",
     "ChatResponse",
+    "SystemConfig",
 ]

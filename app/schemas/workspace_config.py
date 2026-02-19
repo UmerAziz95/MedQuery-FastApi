@@ -8,9 +8,15 @@ class WorkspaceConfigUpdate(BaseModel):
     similarity_threshold: float = Field(0.2, example=0.2)
     max_context_chars: int = Field(12000, example=12000)
     embedding_model: str = Field("text-embedding-3-small", example="text-embedding-3-small")
+    use_local_embeddings: bool = Field(False, example=False, description="Use local embedding model instead of ChatGPT API")
     chat_model_default: str = Field("gpt-4.1-mini", example="gpt-4.1-mini")
     chat_temperature_default: float = Field(0.2, example=0.2)
     chat_max_tokens_default: int = Field(600, example=600)
+    prompt_engineering: str = Field(
+        "You are a medical assistant. Provide concise answers based on the context.",
+        example="You are a medical assistant. Provide concise answers based on the context.",
+        description="System prompt for chat per workspace (dynamic prompt engineering)",
+    )
 
 
 class WorkspaceConfigOut(WorkspaceConfigUpdate):

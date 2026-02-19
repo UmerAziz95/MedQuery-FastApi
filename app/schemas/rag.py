@@ -37,8 +37,10 @@ class ChatRequest(BaseModel):
     workspace_id: str = Field(..., example="main")
     user_id: str = Field(..., example="u123")
     query: str = Field(..., example="User question here")
-    prompt_engineering: str = Field(
-        ..., example="You are a medical assistant. Provide concise answers."
+    prompt_engineering: str | None = Field(
+        None,
+        example="You are a medical assistant. Provide concise answers.",
+        description="Override system prompt. If omitted, uses workspace config prompt.",
     )
     chat_config_override: ChatConfigOverride | None = None
 

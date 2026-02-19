@@ -1,0 +1,4 @@
+# Install only when using USE_LOCAL_EMBEDDINGS=true.
+# Adds sentence-transformers (and PyTorch); large download, use after base image is built.
+-r requirements.txt
+sentence-transformers>=2.2.0

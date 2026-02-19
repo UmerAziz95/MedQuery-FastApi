@@ -4,3 +4,6 @@ __pycache__/
 .env
 storage/
 .pytest_cache/
+logs/crashes/*.log
+logs/memory_pressure.log
+!logs/README.md

@@ -1,5 +1,12 @@
 import asyncio
+import sys
+from pathlib import Path
 from logging.config import fileConfig
+
+# Ensure project root is on path (e.g. /app in Docker) so "app" can be imported
+_project_root = Path(__file__).resolve().parents[2]
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
 from alembic import context
 from sqlalchemy import pool

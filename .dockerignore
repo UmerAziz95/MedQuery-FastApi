@@ -1,0 +1,56 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+dist
+build
+.venv
+venv
+env
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Logs
+logs/*
+!logs/README.md
+*.log
+
+# Environment (do not bake secrets into image; pass at runtime via env_file or -e)
+.env
+.env.local
+.env.*.local
+
+# Documentation
+*.md
+!README.md
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Storage (don't copy uploaded files into image)
+storage/*
+!storage/.gitkeep
+
+# Test files
+tests/
+.pytest_cache
+.coverage
+
+# OS
+.DS_Store
+Thumbs.db

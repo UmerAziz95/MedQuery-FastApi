@@ -1,0 +1,16 @@
+# Development override for docker-compose.yml
+# Use with: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# This enables live code reloading without rebuilding
+
+version: '3.8'
+
+services:
+  api:
+    volumes:
+      # Mount code for live reloading - changes reflect immediately
+      - ./app:/app/app
+      - ./alembic.ini:/app/alembic.ini
+      - ./app/migrations:/app/app/migrations
+      - ./app/ui:/app/app/ui
+    # Override command to enable auto-reload
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

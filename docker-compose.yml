@@ -20,6 +20,22 @@ services:
       - "8000:8000"
     depends_on:
       - postgres
+    # Keep under 4GB so we don't hit limit and get killed (app uses small batches to stay under ~3GB)
+    mem_limit: 4g
+    mem_reservation: 512m
+    # Persist crash logs to host
+    volumes:
+      - ./logs:/app/logs
+      # Mount code for live reloading (development) - comment out for production
+      - ./app:/app/app
+      - ./alembic.ini:/app/alembic.ini
+      - ./app/migrations:/app/app/migrations
+    environment:
+      - PYTHONHASHSEED=0
+      - MALLOC_ARENA_MAX=2
+      # So crash/progress and ingestion logs go to mounted volume (visible on host)
+      - CRASH_LOG_DIR=/app/logs/crashes
+      - INGESTION_LOG_DIR=/app/logs
 
 volumes:
   pgvector_data:

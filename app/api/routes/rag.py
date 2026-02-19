@@ -7,6 +7,7 @@ from app.models import Business, Workspace, WorkspaceConfig
 from app.schemas.rag import RetrievalRequest, RetrievalResponse, RetrievedChunk
 from app.services.embedding_service import EmbeddingService
 from app.services.retrieval_service import retrieve_chunks
+from app.services.system_config_service import get_openai_api_key
 
 router = APIRouter(prefix="/rag", tags=["RAG Retrieval"])
 
@@ -39,8 +40,16 @@ async def retrieve(
         )
     ).scalar_one()
 
+    openai_api_key = await get_openai_api_key(session)
     embedding_service = EmbeddingService()
-    query_embedding = (await embedding_service.embed_texts([payload.query], config.embedding_model))[0]
+    query_embedding = (
+        await embedding_service.embed_texts(
+            [payload.query],
+            config.embedding_model,
+            use_local=config.use_local_embeddings,
+            openai_api_key=openai_api_key,
+        )
+    )[0]
 
     chunks = await retrieve_chunks(
         session=session,

@@ -16,13 +16,19 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
 
+    # Fallback only: OpenAI API key is read from DB (System configurations). Set here or in .env for fallback.
     openai_api_key: str | None = None
     openai_base_url: str = "https://api.openai.com/v1"
     default_embedding_model: str = "text-embedding-3-small"
     default_chat_model: str = "gpt-4.1-mini"
-    vector_dimension: int = 1536
+    vector_dimension: int = 384
+    # Local embeddings (no API call): set use_local_embeddings=true and local_embedding_model (e.g. all-MiniLM-L6-v2).
+    # Then set vector_dimension to match the model (384 for all-MiniLM-L6-v2) and run a migration if changing from 384.
+    use_local_embeddings: bool = True
+    local_embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
     file_storage_path: str = "./storage"
+    rag_background_ingest: bool = False
 
 
 class EmbeddingModelInfo(BaseModel):
@@ -33,6 +39,10 @@ class EmbeddingModelInfo(BaseModel):
 EMBEDDING_MODEL_DIMENSIONS = {
     "text-embedding-3-small": 1536,
     "text-embedding-3-large": 3072,
+    "sentence-transformers/all-MiniLM-L6-v2": 384,
+    "all-MiniLM-L6-v2": 384,
+    "sentence-transformers/all-mpnet-base-v2": 768,
+    "all-mpnet-base-v2": 768,
 }
 
 

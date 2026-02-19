@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Assignment Console</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --panel: #111827;
+        --panel-2: #1f2937;
+        --panel-3: #0b1220;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --accent-2: #0ea5e9;
+        --success: #22c55e;
+        --border: #334155;
+        --error: #ef4444;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      header {
+        padding: 24px 32px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+      }
+
+      header p {
+        margin: 6px 0 0;
+        color: var(--muted);
+      }
+
+      .profile-menu {
+        position: relative;
+      }
+
+      .profile-button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 12px;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(56, 189, 248, 0.3);
+        display: grid;
+        place-items: center;
+        font-weight: 600;
+        color: var(--accent);
+      }
+
+      .dropdown {
+        position: absolute;
+        right: 0;
+        top: 48px;
+        min-width: 220px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45);
+        padding: 8px;
+        display: none;
+        z-index: 10;
+      }
+
+      .dropdown.open {
+        display: grid;
+        gap: 4px;
+      }
+
+      .dropdown a,
+      .dropdown button {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .dropdown a:hover,
+      .dropdown button:hover {
+        background: rgba(56, 189, 248, 0.12);
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 24px;
+        padding: 24px 32px 40px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+      }
+
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .sidebar h2 {
+        margin: 0 0 6px;
+        font-size: 16px;
+      }
+
+      .sidebar-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .sidebar-list li {
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: var(--panel-2);
+        border: 1px solid transparent;
+        font-size: 13px;
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .sidebar-list li.active {
+        border-color: rgba(56, 189, 248, 0.5);
+        color: var(--text);
+        background: rgba(56, 189, 248, 0.08);
+      }
+
+      .sidebar-list li.status {
+        cursor: default;
+      }
+
+      .content {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      label {
+        display: block;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      input,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        padding: 10px 12px;
+        background: var(--panel-2);
+        color: var(--text);
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+
+      input:focus,
+      select:focus {
+        outline: 2px solid rgba(56, 189, 248, 0.35);
+        border-color: rgba(56, 189, 248, 0.6);
+      }
+
+      button {
+        width: 100%;
+        border: none;
+        border-radius: 12px;
+        padding: 12px 16px;
+        background: var(--accent);
+        color: #0f172a;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+
+      button:hover {
+        background: var(--accent-2);
+        transform: translateY(-1px);
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      th {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .status {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .status.error {
+        color: var(--error);
+      }
+
+      .status.success {
+        color: var(--success);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.15);
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .empty-state {
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px dashed var(--border);
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .inline-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .inline-actions button {
+        width: auto;
+        flex: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Assignment Console</h1>
+        <p>Assign admins to businesses and manage workspace access in one place.</p>
+      </div>
+      <div class="profile-menu">
+        <button class="profile-button" id="profile-toggle" type="button">
+          <span class="avatar" id="profile-avatar">A</span>
+          <span id="profile-name">Admin</span>
+        </button>
+        <div class="dropdown" id="profile-dropdown">
+          <a href="/profile">Profile</a>
+          <a href="/chat">Chat workspace</a>
+          <a href="/rag-builder">RAG builder</a>
+          <a href="/database-overview">Database overview</a>
+          <a href="/system-config">System configurations</a>
+          <a href="/system-logs">System logs</a>
+          <button type="button" id="logout">Sign out</button>
+        </div>
+      </div>
+    </header>
+    <main>
+      <aside class="panel sidebar">
+        <div>
+          <h2>Businesses</h2>
+          <div class="pill" id="business-count">Loading…</div>
+        </div>
+        <ul class="sidebar-list" id="business-list">
+          <li class="status">Loading businesses…</li>
+        </ul>
+      </aside>
+      <section class="content">
+        <div class="panel">
+          <h2>Admin Token</h2>
+          <p class="status" id="token-status">Provide a super admin token to manage assignments.</p>
+          <label for="token-input">Bearer Token</label>
+          <input id="token-input" placeholder="eyJhbGciOi..." />
+          <div class="inline-actions">
+            <button id="save-token">Save Token</button>
+            <button id="refresh-data" type="button">Refresh Data</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="panel">
+            <h2>Create Business Client</h2>
+            <label for="new-business-id">Business Client ID</label>
+            <input id="new-business-id" placeholder="acme-health" />
+
+            <label for="new-business-name">Business Name</label>
+            <input id="new-business-name" placeholder="Acme Health" />
+
+            <button id="create-business">Create Business</button>
+            <p class="status" id="business-status"></p>
+          </div>
+          <div class="panel">
+            <h2>Create Admin Assignment</h2>
+            <p class="status">Admins are assigned to a business when created.</p>
+            <label for="admin-business">Business Client ID</label>
+            <input id="admin-business" placeholder="Select a business" />
+
+            <label for="admin-email">Admin Email</label>
+            <input id="admin-email" placeholder="admin@acme.com" />
+
+            <label for="admin-password">Admin Password</label>
+            <input id="admin-password" type="password" placeholder="password" />
+
+            <label for="admin-role">Role</label>
+            <select id="admin-role">
+              <option value="admin">Admin</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+
+            <button id="create-admin">Create Admin</button>
+            <p class="status" id="admin-status"></p>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="panel">
+            <h2>Create Workspace</h2>
+            <label for="workspace-business">Business Client ID</label>
+            <input id="workspace-business" placeholder="Select a business" />
+
+            <label for="workspace-id">Workspace ID</label>
+            <input id="workspace-id" placeholder="main" />
+
+            <label for="workspace-name">Workspace Name</label>
+            <input id="workspace-name" placeholder="Main Workspace" />
+
+            <button id="create-workspace">Create Workspace</button>
+            <p class="status" id="workspace-status"></p>
+          </div>
+          <div class="panel">
+            <h2>Workspace Assignments</h2>
+            <p class="status" id="workspace-list-status">Select a business to view workspaces.</p>
+            <div id="workspace-list"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const tokenInput = document.getElementById("token-input");
+      const tokenStatus = document.getElementById("token-status");
+      const saveTokenButton = document.getElementById("save-token");
+      const refreshButton = document.getElementById("refresh-data");
+      const businessList = document.getElementById("business-list");
+      const businessCount = document.getElementById("business-count");
+      const businessStatus = document.getElementById("business-status");
+      const adminStatus = document.getElementById("admin-status");
+      const workspaceStatus = document.getElementById("workspace-status");
+      const workspaceListStatus = document.getElementById("workspace-list-status");
+      const workspaceList = document.getElementById("workspace-list");
+
+      const adminBusinessInput = document.getElementById("admin-business");
+      const workspaceBusinessInput = document.getElementById("workspace-business");
+      const profileName = document.getElementById("profile-name");
+      const profileAvatar = document.getElementById("profile-avatar");
+      const profileToggle = document.getElementById("profile-toggle");
+      const profileDropdown = document.getElementById("profile-dropdown");
+      const logoutButton = document.getElementById("logout");
+
+      let selectedBusiness = null;
+      let businesses = [];
+
+      const logEvent = (level, tag, action, details = "") => {
+        const logStorageKey = "systemLogs";
+        const logs = JSON.parse(localStorage.getItem(logStorageKey) || "[]");
+        logs.unshift({
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          level,
+          tag,
+          action,
+          details,
+        });
+        localStorage.setItem(logStorageKey, JSON.stringify(logs.slice(0, 500)));
+      };
+
+      const setStatus = (node, message, type = "") => {
+        node.textContent = message;
+        node.classList.remove("error", "success");
+        if (type) {
+          node.classList.add(type);
+        }
+      };
+
+      const getToken = () =>
+        localStorage.getItem("adminToken") || localStorage.getItem("assignmentToken") || "";
+
+      const saveToken = () => {
+        const token = tokenInput.value.trim();
+        localStorage.setItem("adminToken", token);
+        localStorage.setItem("assignmentToken", token);
+        setStatus(tokenStatus, token ? "Token saved." : "Token cleared.", token ? "success" : "");
+        logEvent("info", "assignments", "token_saved", token ? "Token set" : "Token cleared");
+        return token;
+      };
+
+      const apiFetch = async (path, options = {}) => {
+        const token = getToken();
+        const headers = {
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        };
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+        const response = await fetch(path, {
+          ...options,
+          headers,
+        });
+        if (!response.ok) {
+          const errorBody = await response.json().catch(() => ({}));
+          const message = errorBody.detail || `Request failed (${response.status})`;
+          throw new Error(message);
+        }
+        return response.json();
+      };
+
+      const renderBusinesses = () => {
+        if (!businesses.length) {
+          businessList.innerHTML = '<li class="status">No businesses found.</li>';
+          businessCount.textContent = "0 businesses";
+          return;
+        }
+
+        businessCount.textContent = `${businesses.length} businesses`;
+        businessList.innerHTML = businesses
+          .map(
+            (business) => `
+              <li data-business="${business.business_client_id}">
+                ${business.name}
+                <div class="status">${business.business_client_id}</div>
+              </li>
+            `
+          )
+          .join("");
+
+        const items = businessList.querySelectorAll("li[data-business]");
+        items.forEach((item) => {
+          item.addEventListener("click", () => {
+            items.forEach((entry) => entry.classList.remove("active"));
+            item.classList.add("active");
+            selectedBusiness = item.dataset.business;
+            adminBusinessInput.value = selectedBusiness;
+            workspaceBusinessInput.value = selectedBusiness;
+            loadWorkspaces(selectedBusiness);
+          });
+        });
+
+        if (!selectedBusiness && businesses.length > 0) {
+          const first = businessList.querySelector("li[data-business]");
+          first?.click();
+        }
+      };
+
+      const loadBusinesses = async () => {
+        businessList.innerHTML = '<li class="status">Loading businesses…</li>';
+        try {
+          const data = await apiFetch("/api/admin/businesses");
+          businesses = data;
+          renderBusinesses();
+          logEvent("info", "assignments", "businesses_loaded", `count=${data.length}`);
+        } catch (error) {
+          businessList.innerHTML = `<li class="status error">${error.message}</li>`;
+          businessCount.textContent = "Unavailable";
+          logEvent("error", "assignments", "businesses_load_failed", error.message);
+        }
+      };
+
+      const loadWorkspaces = async (businessClientId) => {
+        workspaceListStatus.textContent = `Loading workspaces for ${businessClientId}…`;
+        workspaceList.innerHTML = "";
+        try {
+          const data = await apiFetch(`/api/admin/businesses/${businessClientId}/workspaces`);
+          workspaceListStatus.textContent = "";
+          if (!data.length) {
+            workspaceList.innerHTML = '<div class="empty-state">No workspaces found.</div>';
+            return;
+          }
+          workspaceList.innerHTML = `
+            <table>
+              <thead>
+                <tr>
+                  <th>Workspace</th>
+                  <th>Name</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data
+                  .map(
+                    (workspace) => `
+                      <tr>
+                        <td>${workspace.workspace_id}</td>
+                        <td>${workspace.name}</td>
+                      </tr>
+                    `
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          `;
+          logEvent("info", "assignments", "workspaces_loaded", `business=${businessClientId}`);
+        } catch (error) {
+          workspaceListStatus.textContent = error.message;
+          workspaceListStatus.classList.add("error");
+          workspaceList.innerHTML = '<div class="empty-state">Unable to load workspaces.</div>';
+          logEvent("error", "assignments", "workspaces_load_failed", error.message);
+        }
+      };
+
+      const createBusiness = async () => {
+        const businessClientId = document.getElementById("new-business-id").value.trim();
+        const name = document.getElementById("new-business-name").value.trim();
+        if (!businessClientId || !name) {
+          setStatus(businessStatus, "Business ID and name are required.", "error");
+          logEvent("warning", "assignments", "create_business_validation_failed", "Missing business ID or name");
+          return;
+        }
+        setStatus(businessStatus, "Creating business…");
+        try {
+          await apiFetch("/api/admin/businesses", {
+            method: "POST",
+            body: JSON.stringify({ business_client_id: businessClientId, name }),
+          });
+          setStatus(businessStatus, "Business created.", "success");
+          await loadBusinesses();
+          logEvent("info", "assignments", "business_created", businessClientId);
+        } catch (error) {
+          setStatus(businessStatus, error.message, "error");
+          logEvent("error", "assignments", "business_create_failed", error.message);
+        }
+      };
+
+      const createAdmin = async () => {
+        const businessClientId = adminBusinessInput.value.trim();
+        const email = document.getElementById("admin-email").value.trim();
+        const password = document.getElementById("admin-password").value.trim();
+        const role = document.getElementById("admin-role").value;
+        if (!businessClientId || !email || !password) {
+          setStatus(adminStatus, "Business, email, and password are required.", "error");
+          logEvent("warning", "assignments", "create_admin_validation_failed", "Missing admin credentials");
+          return;
+        }
+        setStatus(adminStatus, "Creating admin…");
+        try {
+          await apiFetch("/api/admin/auth/create-admin", {
+            method: "POST",
+            body: JSON.stringify({
+              business_client_id: businessClientId,
+              email,
+              password,
+              role,
+            }),
+          });
+          setStatus(adminStatus, "Admin assigned to business.", "success");
+          logEvent("info", "assignments", "admin_created", `${email} (${role})`);
+        } catch (error) {
+          setStatus(adminStatus, error.message, "error");
+          logEvent("error", "assignments", "admin_create_failed", error.message);
+        }
+      };
+
+      const createWorkspace = async () => {
+        const businessClientId = workspaceBusinessInput.value.trim();
+        const workspaceId = document.getElementById("workspace-id").value.trim();
+        const name = document.getElementById("workspace-name").value.trim();
+        if (!businessClientId || !workspaceId || !name) {
+          setStatus(workspaceStatus, "Business, workspace ID, and name are required.", "error");
+          logEvent("warning", "assignments", "create_workspace_validation_failed", "Missing workspace inputs");
+          return;
+        }
+        setStatus(workspaceStatus, "Creating workspace…");
+        try {
+          await apiFetch(`/api/admin/businesses/${businessClientId}/workspaces`, {
+            method: "POST",
+            body: JSON.stringify({ workspace_id: workspaceId, name }),
+          });
+          setStatus(workspaceStatus, "Workspace created.", "success");
+          await loadWorkspaces(businessClientId);
+          logEvent("info", "assignments", "workspace_created", workspaceId);
+        } catch (error) {
+          setStatus(workspaceStatus, error.message, "error");
+          logEvent("error", "assignments", "workspace_create_failed", error.message);
+        }
+      };
+
+      saveTokenButton.addEventListener("click", saveToken);
+      refreshButton.addEventListener("click", () => {
+        saveToken();
+        loadBusinesses();
+        logEvent("info", "assignments", "refresh_clicked");
+      });
+      document.getElementById("create-business").addEventListener("click", createBusiness);
+      document.getElementById("create-admin").addEventListener("click", createAdmin);
+      document.getElementById("create-workspace").addEventListener("click", createWorkspace);
+
+      const initialToken = getToken();
+      tokenInput.value = initialToken;
+      if (initialToken) {
+        setStatus(tokenStatus, "Loaded saved token.", "success");
+        logEvent("info", "assignments", "token_loaded");
+      }
+      const email = localStorage.getItem("adminEmail") || "Admin";
+      profileName.textContent = email;
+      profileAvatar.textContent = email.charAt(0).toUpperCase();
+
+      profileToggle.addEventListener("click", () => {
+        profileDropdown.classList.toggle("open");
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!profileToggle.contains(event.target) && !profileDropdown.contains(event.target)) {
+          profileDropdown.classList.remove("open");
+        }
+      });
+
+      logoutButton.addEventListener("click", () => {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminBusinessId");
+        localStorage.removeItem("adminEmail");
+        localStorage.removeItem("adminLoginAt");
+        logEvent("info", "auth", "logout");
+        window.location.assign("/ui");
+      });
+
+      window.addEventListener("error", (event) => {
+        logEvent("error", "system", "window_error", event.message || "Unexpected error");
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        logEvent("error", "system", "unhandled_rejection", event.reason?.message || "Unhandled promise rejection");
+      });
+      loadBusinesses();
+    </script>
+  </body>
+</html>
