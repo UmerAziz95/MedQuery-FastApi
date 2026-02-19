@@ -1,0 +1,50 @@
+================================================================================
+CRASH REPORT: crash_20260206_124225_8
+================================================================================
+
+SYSTEM INFORMATION
+--------------------------------------------------------------------------------
+timestamp: 2026-02-06T12:42:25.418906
+python_version: 3.11.14 (main, Feb  4 2026, 20:24:25) [GCC 14.2.0]
+platform: linux
+executable: /usr/local/bin/python3.11
+process_id: 8
+memory_rss_mb: 942.109375
+memory_vms_mb: 5922.61328125
+memory_percent: 12.079511009694462
+cpu_percent: 0.0
+num_threads: 19
+num_fds: 20
+system_memory_total_gb: 7.6164398193359375
+system_memory_available_gb: 6.395694732666016
+system_memory_used_gb: 1.0401191711425781
+system_memory_percent: 16.0
+
+EXCEPTION DETAILS
+--------------------------------------------------------------------------------
+Type: SignalException
+Message: Application terminated by signal 15
+Args: ('Application terminated by signal 15',)
+
+FULL TRACEBACK:
+app.main.signal_handler.<locals>.SignalException: Application terminated by signal 15
+
+
+GARBAGE COLLECTION INFO
+--------------------------------------------------------------------------------
+gc_counts: (291, 11, 17)
+gc_stats: [{'collections': 1166, 'collected': 17481, 'uncollectable': 0}, {'collections': 105, 'collected': 6399, 'uncollectable': 0}, {'collections': 7, 'collected': 1348, 'uncollectable': 0}]
+gc_threshold: (700, 10, 10)
+
+OPERATION CONTEXT
+--------------------------------------------------------------------------------
+signal_number: 15
+signal_name: SIGTERM
+
+ADDITIONAL INFORMATION
+--------------------------------------------------------------------------------
+frame_info: <frame at 0x790e02171b70, file '/usr/local/lib/python3.11/asyncio/runners.py', line 118, code run>
+
+================================================================================
+End of crash report
+================================================================================
